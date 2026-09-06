@@ -1,0 +1,61 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="tomato" cx="45%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#ff8fab"/>
+      <stop offset="40%" stop-color="#fb7185"/>
+      <stop offset="100%" stop-color="#e11d48"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#86efac"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- bg pastel -->
+  <rect width="512" height="512" rx="128" fill="#fff0f5"/>
+  <!-- shadow -->
+  <ellipse cx="256" cy="420" rx="140" ry="22" fill="#f8c8d4" opacity="0.7"/>
+  <!-- tomato body -->
+  <ellipse cx="256" cy="260" rx="150" ry="150" fill="url(#tomato)" stroke="#be123c" stroke-width="6"/>
+  <!-- highlight -->
+  <ellipse cx="205" cy="205" rx="55" ry="72" fill="url(#shine)" opacity="0.55"/>
+  <ellipse cx="185" cy="185" rx="22" ry="18" fill="white" opacity="0.85"/>
+  <!-- clock face inside -->
+  <circle cx="256" cy="268" r="92" fill="white" stroke="#ffe4ec" stroke-width="6"/>
+  <circle cx="256" cy="268" r="82" fill="#fff0f5"/>
+  <!-- clock ticks -->
+  <g stroke="#f8c8d4" stroke-width="4" stroke-linecap="round">
+    <line x1="256" y1="195" x2="256" y2="210"/>
+    <line x1="256" y1="326" x2="256" y2="341"/>
+    <line x1="183" y1="268" x2="198" y2="268"/>
+    <line x1="314" y1="268" x2="329" y2="268"/>
+    <line x1="204" y1="216" x2="214" y2="227"/>
+    <line x1="298" y1="309" x2="308" y2="320"/>
+    <line x1="204" y1="320" x2="214" y2="309"/>
+    <line x1="298" y1="216" x2="308" y2="227"/>
+  </g>
+  <!-- clock hands 25 min pomodoro hint -->
+  <line x1="256" y1="268" x2="256" y2="205" stroke="#5c3a4a" stroke-width="7" stroke-linecap="round"/>
+  <line x1="256" y1="268" x2="300" y2="295" stroke="#f472b6" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="256" cy="268" r="10" fill="#5c3a4a" stroke="white" stroke-width="2"/>
+  <circle cx="256" cy="268" r="4" fill="#f472b6"/>
+  <!-- eyes kawaii -->
+  <ellipse cx="215" cy="345" rx="13" ry="18" fill="#5c3a4a"/>
+  <ellipse cx="297" cy="345" rx="13" ry="18" fill="#5c3a4a"/>
+  <circle cx="218" cy="340" r="5" fill="white" opacity="0.9"/>
+  <circle cx="300" cy="340" r="5" fill="white" opacity="0.9"/>
+  <!-- cheeks -->
+  <ellipse cx="185" cy="362" rx="20" ry="11" fill="#f472b6" opacity="0.55"/>
+  <ellipse cx="327" cy="362" rx="20" ry="11" fill="#f472b6" opacity="0.55"/>
+  <!-- smile -->
+  <path d="M 238 375 Q 256 385 274 375" fill="none" stroke="#5c3a4a" stroke-width="4" stroke-linecap="round"/>
+  <!-- stem -->
+  <path d="M 235 118 Q 256 95 277 118 L 256 135 Z" fill="#16a34a" stroke="#14532d" stroke-width="3"/>
+  <!-- leaves -->
+  <path d="M256 125 Q 210 85 165 105 Q 200 135 256 125" fill="url(#leaf)" stroke="#14532d" stroke-width="3"/>
+  <path d="M256 125 Q 302 85 347 105 Q 312 135 256 125" fill="url(#leaf)" stroke="#14532d" stroke-width="3"/>
+  <path d="M256 125 Q 256 60 256 45 Q 275 80 256 125" fill="#4ade80" stroke="#14532d" stroke-width="3"/>
+</svg>

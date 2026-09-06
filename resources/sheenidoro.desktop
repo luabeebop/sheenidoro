@@ -1,0 +1,20 @@
+[Desktop Entry]
+Name=Sheenidoro
+Comment=Pastel sakura pomodoro — track breaks, stay focused 🍅
+Exec=sheenidoro %U
+Icon=sheenidoro
+Type=Application
+Categories=Utility;Productivity;
+StartupWMClass=Sheenidoro
+Terminal=false
+GenericName=Pomodoro Timer
+Keywords=pomodoro;timer;focus;break;productivity;
+Actions=Toggle;Show;
+
+[Desktop Action Toggle]
+Name=Toggle Timer
+Exec=sheenidoro --toggle
+
+[Desktop Action Show]
+Name=Show Window
+Exec=sheenidoro --show
