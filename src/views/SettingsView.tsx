@@ -95,17 +95,45 @@ export function SettingsView({
           checked={settings.soundEnabled}
           onChange={(v) => onChange({ soundEnabled: v })}
         />
-        <div className="pt-2">
+        <div className="pt-2 flex flex-wrap gap-2">
           <button
             onClick={() => {
-              const api = (window as unknown as { sheenidoro?: { testNotify: () => void } }).sheenidoro
+              const api = (window as unknown as { sheenidoro?: { testNotify: () => void; playChime: () => void } }).sheenidoro
               api?.testNotify()
+              api?.playChime()
+              const audio = document.getElementById('sheenidoro-chime') as HTMLAudioElement | null
+              if (audio) {
+                audio.volume = 1.0
+                audio.currentTime = 0
+                audio.play().catch(() => {})
+              } else {
+                // fallback create audio
+                const a = new Audio('./sounds/chime.wav')
+                a.volume = 1.0
+                a.play().catch(() => {})
+              }
             }}
             className="px-4 py-2 rounded-full bg-sakuraBg2 border border-sakuraBorder text-sm font-semibold text-sakuraText hover:bg-sakuraAccent"
           >
-            Test notification 🔔
+            Test notification + chime 🔔
+          </button>
+          <button
+            onClick={() => {
+              const audio = document.getElementById('sheenidoro-chime') as HTMLAudioElement | null
+              if (audio) {
+                audio.volume = 1.0
+                audio.currentTime = 0
+                audio.play().catch(() => {})
+              }
+              const api = (window as unknown as { sheenidoro?: { playChime: () => void } }).sheenidoro
+              api?.playChime()
+            }}
+            className="px-4 py-2 rounded-full bg-white border border-sakuraBorder text-sm font-semibold text-sakuraMuted hover:text-sakuraText"
+          >
+            Test chime only 🎵
           </button>
         </div>
+        <p className="text-[11px] text-sakuraMuted">If you hear no sound, check `pavucontrol` volume and that `paplay` works.</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-sakuraBorder p-5 shadow-sm">

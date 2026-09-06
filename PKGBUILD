@@ -48,6 +48,7 @@ exec "$ELECTRON" "$APPDIR/dist-electron/electron/main.js" "$@"
 WRAP
   chmod +x "$pkgdir/usr/bin/sheenidoro"
 
-  # waybar helper
+  # waybar helpers
   install -Dm755 scripts/waybar-sheenidoro.sh "$pkgdir/usr/share/sheenidoro/waybar-sheenidoro.sh"
+  install -Dm755 scripts/setup-waybar.sh "$pkgdir/usr/share/sheenidoro/setup-waybar.sh"
 }
