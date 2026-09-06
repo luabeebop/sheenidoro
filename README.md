@@ -12,7 +12,7 @@ React + Electron pomodoro with native Hyprland window, mako notifications, tray 
 
 - **Editable durations**: Focus / Short Break / Long Break (1–90 min, long every 2–10 focuses). Changes apply next cycle. Presets 15/25/50.
 - **Always wait for user**: No auto-start — after each phase, waits for **Start** click.
-- **Chime only**: Soft `assets/sounds/chime.wav` on transition, no ticking.
+- **Chime only**: Catchy double-bell `assets/sounds/chime.wav` (1.6s, 880→1760Hz) on transition, no ticking. Test via Settings → Test notification + chime (plays both `paplay` and HTML5 Audio).
 - **Stay running**: Close → hide to tray, timer continues. Tray: Show, Toggle, Skip, Quit.
 - **Break review**: History view lists every session (`completed`/`skipped`/`interrupted`), stats (today focus/break, weekly total, completion %), weekly Recharts bar, filters (Today/Week/All), CSV export.
 - **Notifications**: Electron `Notification` + `notify-send -a Sheenidoro -u critical` (visible even in mako DND, your `~/.config/mako/config` whitelists `notify-send`).
@@ -42,11 +42,13 @@ npx tsc -p tsconfig.electron.json  # -> dist-electron/
 electron .               # loads dist/index.html
 ```
 
-Test notification:
+Test notification + sound:
 
 ```bash
 notify-send -a Sheenidoro -u critical -i resources/icon.png "Focus complete! 🍅" "Take a 5 min break"
 paplay assets/sounds/chime.wav
+# in-app: Settings → Test notification + chime (also triggers paplay + Audio fallback)
+# waybar: bash scripts/setup-waybar.sh then launch app
 ```
 
 ## Build / Package
@@ -64,9 +66,26 @@ Wrapper in `PKGBUILD` uses system `/usr/bin/electron37` (already on your Omarchy
 
 ## Omarchy Integration
 
-### Waybar
+### Waybar (automatic)
 
-Add to `~/.config/waybar/config.jsonc`:
+Run once — patches config + style and reloads waybar:
+
+```bash
+bash scripts/setup-waybar.sh
+# or after install: /usr/share/sheenidoro/setup-waybar.sh
+```
+
+This adds `custom/sheenidoro` to `~/.config/waybar/config.jsonc` (after `clock` in `modules-center`), appends pastel styles to `~/.config/waybar/style.css`, backs up originals, and `killall -SIGUSR2 waybar`.
+
+Verify:
+```bash
+cat ~/.local/state/sheenidoro/waybar.json
+bash scripts/waybar-sheenidoro.sh
+```
+
+### Waybar (manual)
+
+If you prefer manual, add to `~/.config/waybar/config.jsonc`:
 
 ```json
 "custom/sheenidoro": {
@@ -79,7 +98,7 @@ Add to `~/.config/waybar/config.jsonc`:
 },
 ```
 
-And include `"custom/sheenidoro"` in `modules-center` or `modules-right`.
+And include `"custom/sheenidoro"` in `modules-center` (recommended right after `clock`) or `modules-right`.
 
 Helper script alternative:
 
@@ -87,13 +106,14 @@ Helper script alternative:
 "exec": "~/.local/share/sheenidoro/waybar-sheenidoro.sh"
 ```
 
-Style in `~/.config/waybar/style.css`:
+Style in `~/.config/waybar/style.css` (added automatically by setup script):
 
 ```css
-#custom-sheenidoro { padding: 0 8px; font-family: 'JetBrainsMono Nerd Font'; }
-#custom-sheenidoro.focus { color: #ec4899; }
-#custom-sheenidoro.break { color: #fb7185; }
-#custom-sheenidoro.paused { opacity: 0.7; }
+#custom-sheenidoro { padding: 0 10px; margin:0 4px; border-radius:12px; background:#ffe4ec; color:#5c3a4a; border:1px solid #f8c8d4; font-weight:bold; }
+#custom-sheenidoro.focus { background:#f472b6; color:white; border-color:#ec4899; }
+#custom-sheenidoro.break { background:#fff0f5; color:#db2777; }
+#custom-sheenidoro.paused { opacity:0.75; }
+#custom-sheenidoro.idle { background:#fff0f5; color:#9d6b7a; }
 ```
 
 Waybar file example:
@@ -184,7 +204,7 @@ Close button = hide to tray (not quit) — use tray Quit or `Ctrl+Q`.
 
 - **No window on Hyprland**: `hyprctl clients | grep Sheenidoro` → if hidden, `sheenidoro --show` or click tray.
 - **No notification**: check `mako` running (`systemctl --user status mako`), test `notify-send -a Sheenidoro -u critical test`.
-- **No waybar**: ensure `~/.local/state/sheenidoro/waybar.json` exists (`cat` it), then `killall -SIGUSR2 waybar`.
+- **No waybar**: run `bash scripts/setup-waybar.sh` then `cat ~/.local/state/sheenidoro/waybar.json` — if file updates while timer runs, module is writing; then `killall -SIGUSR2 waybar` or `waybar &`. Check `~/.config/waybar/config.jsonc` contains `custom/sheenidoro` in `modules-center`.
 - **Electron not found**: wrapper tries `electron37` → `electron` fallback; install `electron37` via pacman.
 
 ## License

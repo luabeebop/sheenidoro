@@ -239,6 +239,26 @@ function notifyViaMako(title: string, body: string) {
   } catch {}
 }
 
+function playChimePaplay() {
+  try {
+    const candidates = [
+      path.join(process.cwd(), 'assets/sounds/chime.wav'),
+      path.join(process.cwd(), 'public/sounds/chime.wav'),
+      path.join(__dirname, '../../assets/sounds/chime.wav'),
+      path.join(__dirname, '../../public/sounds/chime.wav'),
+      path.join(process.resourcesPath, 'assets/sounds/chime.wav'),
+      path.join(process.resourcesPath, 'app/assets/sounds/chime.wav'),
+    ]
+    const p = candidates.find((c) => fs.existsSync(c))
+    if (p) {
+      spawn('paplay', [p], { stdio: 'ignore', detached: true }).unref()
+    } else {
+      // fallback beep via pw-play or aplay
+      spawn('paplay', ['--version'], { stdio: 'ignore' }).on('error', () => {})
+    }
+  } catch {}
+}
+
 function showNotification(completed: string, next: string) {
   const isFocusDone = completed === 'focus'
   const title = isFocusDone ? 'Focus complete! 🍅' : 'Break over! 🌸'
@@ -279,6 +299,14 @@ function showNotification(completed: string, next: string) {
 
   // also fallback to notify-send to ensure critical
   notifyViaMako(title, body)
+
+  // play chime via paplay if enabled (catchy!)
+  try {
+    const s = store?.get('settings') as AppSettings | undefined
+    if (s?.soundEnabled !== false) {
+      playChimePaplay()
+    }
+  } catch {}
 
   // flash window
   win?.flashFrame(true)
@@ -330,22 +358,11 @@ function setupIpc() {
   })
   ipcMain.on('sheenidoro:notify:test', () => {
     showNotification('focus', 'shortBreak')
+    // also ensure chime plays even if showNotification already did — double ensure for test
+    playChimePaplay()
   })
   ipcMain.on('sheenidoro:sound:chime', () => {
-    try {
-      const candidates = [
-        path.join(process.cwd(), 'assets/sounds/chime.wav'),
-        path.join(process.cwd(), 'public/sounds/chime.wav'),
-        path.join(__dirname, '../../assets/sounds/chime.wav'),
-        path.join(__dirname, '../../public/sounds/chime.wav'),
-        path.join(process.resourcesPath, 'assets/sounds/chime.wav'),
-        path.join(process.resourcesPath, 'app/assets/sounds/chime.wav'),
-      ]
-      const p = candidates.find((c) => fs.existsSync(c))
-      if (p) {
-        spawn('paplay', [p], { stdio: 'ignore', detached: true }).unref()
-      }
-    } catch {}
+    playChimePaplay()
   })
   ipcMain.on('sheenidoro:waybar:update', (_e, payload: Record<string, unknown>) => {
     try {

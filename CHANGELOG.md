@@ -47,6 +47,21 @@ All notable changes are recorded here. Project path: `/home/tartarus/Projects/po
 - Hyprland optional float rules documented in README.
 - No SQLite — JSON store suffices for <10k sessions.
 
+## [1.0.1] — 2026-09-07 (fix/waybar-notify-chime)
+
+### Fixed
+- **Test notification sound**: `SettingsView` now triggers both `notify` + `paplay` chime + HTML5 `Audio` (`./sounds/chime.wav`); `electron/main.ts:242` `showNotification` now calls `playChimePaplay()` when `soundEnabled`, and `ipc 'sheenidoro:notify:test'` double-ensures chime. Fixes silent test button.
+- **Waybar integration**: added `scripts/setup-waybar.sh:1` (idempotent) — parses `config.jsonc`, injects `custom/sheenidoro` after `clock` in `modules-center`, appends pastel styles to `style.css`, reloads waybar. Previously user saw no timer because module was missing. Now `bash scripts/setup-waybar.sh` fixes. Updated `README.md:65` docs.
+- **Chime catchiness**: regenerated `assets/sounds/chime.wav:1` from 0.6s soft to 1.6s double-strike bright bell (880+1109+1320Hz → 1046+1318+1760+2093Hz echo at 0.38s + 0.78s sparkle, 138KB), louder (22000), catches attention. Copied to `public/sounds/` and `src/assets/`.
+
+### Added
+- `scripts/setup-waybar.sh` installed via `PKGBUILD:52` to `/usr/share/sheenidoro/`.
+- `SettingsView` now has two test buttons: `Test notification + chime` and `Test chime only`.
+
+### Changed
+- `README.md` Waybar section now documents automatic setup.
+- Branch discipline enforced: this release developed on `fix/waybar-notify-chime`, not `main`.
+
 ## [Unreleased]
 - Per-pomodoro notes
 - Heatmap calendar
