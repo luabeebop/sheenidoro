@@ -109,12 +109,13 @@ function writeWaybarIdle() {
   try {
     const dir = ensureWaybarDir()
     const file = path.join(dir, 'waybar.json')
-    fs.writeFileSync(
-      file,
-      JSON.stringify({ text: '○ 25:00 🍅', tooltip: 'Sheenidoro not running — click to open', class: 'idle', percentage: 0 }),
-      'utf-8'
-    )
+    // delete file so waybar hides (user wants no timer when app not running)
+    if (fs.existsSync(file)) fs.unlinkSync(file)
   } catch {}
+}
+
+function writeWaybarHidden() {
+  writeWaybarIdle()
 }
 
 async function initStore() {
