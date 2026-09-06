@@ -62,6 +62,10 @@ All notable changes are recorded here. Project path: `/home/tartarus/Projects/po
 - `README.md` Waybar section now documents automatic setup.
 - Branch discipline enforced: this release developed on `fix/waybar-notify-chime`, not `main`.
 
+### Notes
+- 2026-09-07 — Sheena (girlfriend) feedback: prefers strawberry over tomato (pomodoro literal). Forgiven, keep tomato graphics for now. Strawberry swap prepared for future branch `fix/strawberry-for-sheena` if requested (replace `public/icon.svg`, PNGs, illustrations, emoji 🍓). No code change in 1.0.1.
+- Local continuity captured in `docs/session-2026-09-07.md:1` for next session.
+
 ## [Unreleased]
 - Per-pomodoro notes
 - Heatmap calendar
