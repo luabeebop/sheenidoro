@@ -4,38 +4,45 @@ export default {
   theme: {
     extend: {
       colors: {
-        sakuraBg: '#fff0f5',
-        sakuraBg2: '#ffe4ec',
-        sakuraAccent: '#f8c8d4',
-        sakuraAccent2: '#f4b6c2',
-        sakuraPrimary: '#f472b6',
-        sakuraPrimaryDark: '#db2777',
-        sakuraPrimaryLight: '#f9a8d4',
-        sakuraText: '#5c3a4a',
-        sakuraMuted: '#9d6b7a',
-        sakuraCard: '#ffffff',
-        sakuraBorder: '#ffd6e0',
+        // neutrals — aquirin's black/white, inverted for a dark terminal
+        void: '#000000',
+        panel: '#07080a',
+        panel2: '#0d0f12',
+        panel3: '#14171b',
+        line: '#1e2227',
+        line2: '#2c3238',
+        txt: '#ffffff',
+        dim: '#8b9199',
+        faint: '#4c5259',
+        // phase accents — `hot` is aquirin's red
+        hot: '#ff0033',
+        hotDim: '#a3001f',
+        ice: '#00e5ff',
+        iceDim: '#00879b',
+        gold: '#ffb000',
+        goldDim: '#9c6c00',
       },
       fontFamily: {
-        mono: ['JetBrainsMono Nerd Font', 'JetBrains Mono', 'monospace'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['Inconsolata', 'JetBrainsMono Nerd Font', 'JetBrains Mono', 'ui-monospace', 'monospace'],
+        sans: ['Inconsolata', 'JetBrainsMono Nerd Font', 'ui-monospace', 'monospace'],
+      },
+      letterSpacing: {
+        hud: '0.22em',
+        wide2: '0.14em',
       },
       boxShadow: {
-        sakura: '0 4px 24px rgba(244,114,182,0.15)',
-        sakuraLg: '0 8px 32px rgba(244,114,182,0.18)',
+        hot: '0 0 0 1px rgba(255,0,51,0.55), 0 0 22px rgba(255,0,51,0.22)',
+        inset: 'inset 0 0 40px rgba(255,255,255,0.02)',
       },
       animation: {
-        breathe: 'breathe 3s ease-in-out infinite',
-        pop: 'pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        blink: 'blink 1.05s steps(2, start) infinite',
+        flicker: 'flicker 4.5s infinite steps(1)',
+        pulseBar: 'pulseBar 1.6s ease-in-out infinite',
       },
       keyframes: {
-        breathe: {
-          '0%, 100%': { transform: 'scale(1)' },
-          '50%': { transform: 'scale(1.02)' },
-        },
-        pop: {
-          '0%': { transform: 'scale(0.9)', opacity: '0' },
-          '100%': { transform: 'scale(1)', opacity: '1' },
+        pulseBar: {
+          '0%, 100%': { opacity: '0.35' },
+          '50%': { opacity: '1' },
         },
       },
     },

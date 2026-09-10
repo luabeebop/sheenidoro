@@ -2,6 +2,68 @@
 
 All notable changes are recorded here. Project path: `/home/tartarus/Projects/pomodoro` (app name: `Sheenidoro`).
 
+## [2.0.0] — 2026-09-11
+
+Visual rebuild plus a waybar integration that actually survives being hidden.
+
+### Changed — UI
+- **Theme replaced**: pastel sakura pink is gone. New language derived from
+  [aquirin.com](https://aquirin.com) — Inconsolata mono throughout, pure black/white, one hot accent,
+  1px hairlines, zero border-radius, `steps()` typewriter motion — inverted to a dark cyberpunk
+  terminal. Phase accents: focus `#ff0033` (aquirin's red), short break `#00e5ff`, long break `#ffb000`.
+  Each phase rebinds `--accent`, so ring, brackets, caret and buttons recolour together.
+- `src/index.css:1` — design tokens, self-hosted Inconsolata 400/700, CRT scanline/vignette/noise/sweep
+  layers, typewriter + blink + flicker + glitch keyframes, corner-bracket utility.
+- `src/App.tsx:1` — HUD rail (brand, live phase/status, session count, wall clock), CRT overlay stack,
+  chromatic-split glitch on phase change.
+- `src/components/TimerRing.tsx:1` — soft gradient ring replaced by a HUD reactor: 60 chronometer
+  ticks that light with progress, hard butt-cap arc with SVG glow, leading head marker, corner
+  brackets, crosshairs, scan ring that spins only while running.
+- `src/components/NavRail.tsx:1` (was `Sidebar.tsx`) — bracketed `[01]/[02]/[03]` nav with accent bar.
+- `src/views/HistoryView.tsx:1` — data terminal: bracketed stat tiles, restyled chart, aligned log rows.
+- `src/views/SettingsView.tsx:1` — terminal config panels, hard steppers and ON/OFF switches.
+- `src/lib/theme.ts:1` — single source for phase label/colour/glyph.
+- Kawaii tomato SVGs removed; the timer's illustration slot now shows a real **cycle map**.
+- Icon redesigned (black ground, red HUD brackets, progress arc); PNGs and tray mark regenerated.
+- Added `1`/`2`/`3` shortcuts for the three panes; shortcuts now ignore keystrokes in form fields.
+
+### Fixed — waybar
+- **Module vanished mid-session.** The renderer owned the state file, and Chromium throttles timers in
+  a hidden window, so the file went stale while the app sat in the tray and the helper hid the module.
+  The **main process** now owns it (`electron/main.ts:1`): the renderer publishes a snapshot on each
+  phase transition, main re-derives the countdown from the deadline and writes once a second on an
+  unthrottled timer.
+- **Torn reads.** State file is now written atomically (temp + `rename`).
+- **Timer and alerts drifted when hidden.** Set `backgroundThrottling: false`.
+- **Clicks did nothing.** `sheenidoro` was never on `PATH` without the pacman package. `setup-waybar.sh`
+  now writes a launcher shim to `~/.local/bin/sheenidoro` and registers **absolute paths** in the
+  module, since waybar runs click commands through `sh`.
+- **`--toggle` yanked the window forward.** The `second-instance` handler raised the window
+  unconditionally; only `--show` does now. Added `--skip` (bound to middle-click).
+- **`--waybar` booted a whole Electron instance** to print one line — it now prints and exits before
+  any window or lock work.
+- **Helper spawned a Python interpreter every second, forever.** Rewritten in pure bash; honours
+  `XDG_STATE_HOME`.
+- **Stale idle file.** Startup seeded a hardcoded `○ 25:00 🍅` ignoring real settings; it now seeds
+  from the store. Main removes the file on quit and on `SIGINT`/`SIGTERM`/`SIGHUP`, so killing a dev
+  run no longer leaves a frozen timer.
+- Waybar styling rewritten flat to match the Omarchy bar, with per-phase classes
+  (`focus`/`short`/`long`/`paused`/`idle`/`hidden`); the style block is delimited so re-runs replace
+  it cleanly instead of stacking.
+
+### Fixed — app
+- **A waybar click fired hundreds of stale handlers.** `onToggle`/`onSkip` re-registered an IPC
+  listener on every render and never removed one — with the timer re-rendering 4×/s, `--toggle`
+  restarted the phase instead of pausing it. Preload now returns an unsubscriber, and `App.tsx`
+  subscribes once and reads the live timer through a ref.
+- **Window class was `Electron`.** Wrappers invoked `main.js` by absolute path, so Electron could not
+  find `package.json` and fell back to the default name, colliding with every other Electron app and
+  breaking `StartupWMClass` and `class:Sheenidoro` rules. Added top-level `productName` and pointed
+  the launchers at the app directory.
+- **Config path would have moved.** Setting `productName` relocates `userData` to
+  `~/.config/Sheenidoro`, orphaning existing settings and history; `userData` is now pinned to the
+  documented `~/.config/sheenidoro`.
+
 ## [1.0.0] — 2026-09-07
 
 ### Added
@@ -75,6 +137,11 @@ All notable changes are recorded here. Project path: `/home/tartarus/Projects/po
 ### Changed
 - `scripts/setup-waybar.sh:1` now installs helper to `~/.local/share/sheenidoro/waybar-sheenidoro.sh` and migrates old `cat ~/.local/state/.../waybar.json` exec to helper script path. Existing user config auto-migrated (verified: waybar reloaded, shows `custom/sheenidoro` after `clock`).
 - Branch `fix/waybar-stuck-idle` from `fix/waybar-notify-chime`, not `main`.
+
+## [1.0.3] — 2026-09-07 (fix/waybar-hide-when-closed)
+
+### Fixed
+- **Waybar shows when app not running**: user wants hidden when closed. Now `waybar-sheenidoro.sh:1` returns `{"text":"","class":"hidden"}` when file missing or stale (>7s), and `style.css` `#custom-sheenidoro.hidden {opacity:0; min-width:0; margin:0; padding:0;}` hides module. `electron/main.ts:108` `writeWaybarIdle()` now deletes `waybar.json` on `before-quit`/`quit` instead of writing idle, so helper hides immediately. `setup-waybar.sh` now removes stale file on setup if not running. Verified: no app → `bash waybar-sheenidoro.sh` → hidden, fresh timer → visible, stale 10s → hidden.
 
 ## [Unreleased]
 - Per-pomodoro notes

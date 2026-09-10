@@ -1,35 +1,34 @@
 #!/usr/bin/env bash
-# Sheenidoro waybar helper — resilient cat with stale detection
-# If waybar.json is older than 5s (vite dev died, app quit without cleanup, etc.)
-# we show idle instead of stuck timer. Also validates JSON.
+# Sheenidoro waybar helper.
+#
+# Prints the current timer state, or a collapsed module when the app is not
+# running. Sheenidoro's main process rewrites the state file once a second and
+# deletes it on exit, so "missing or stale" is a reliable stand-in for "not
+# running" — including after a crash or SIGKILL, where no cleanup ran.
+#
+# Deliberately pure bash: waybar polls this once a second, forever.
 
-STATE="$HOME/.local/state/sheenidoro/waybar.json"
-IDLE='{"text":"○ 25:00 🍅","tooltip":"Sheenidoro not running — click to open","class":"idle","percentage":0}'
+set -u
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/sheenidoro/waybar.json"
+HIDDEN='{"text":"","tooltip":"","class":"hidden","percentage":0}'
+STALE_AFTER=5
 
 if [ ! -f "$STATE" ]; then
-  echo "$IDLE"
+  echo "$HIDDEN"
   exit 0
 fi
 
-# check staleness: if file not updated in last 7 seconds, treat as stale (dev server closed, app hidden but timer stopped)
-if command -v stat >/dev/null 2>&1; then
-  mtime=$(stat -c %Y "$STATE" 2>/dev/null || stat -f %m "$STATE" 2>/dev/null || echo 0)
-  now=$(date +%s)
-  age=$((now - mtime))
-  # if older than 7s, waybar would be showing stale timer — show idle
-  # but allow running timer: file should update every ~250ms while app runs
-  if [ "$age" -gt 7 ]; then
-    # double-check: if app is still running but idle, file is still updated every tick (even idle updates)
-    # So >7 means app not updating -> stale -> idle
-    echo "$IDLE"
-    exit 0
-  fi
+mtime=$(stat -c %Y "$STATE" 2>/dev/null || stat -f %m "$STATE" 2>/dev/null || echo "")
+if [ -n "$mtime" ] && [ $(( $(date +%s) - mtime )) -gt "$STALE_AFTER" ]; then
+  echo "$HIDDEN"
+  exit 0
 fi
 
-# validate JSON + has text field
 content=$(cat "$STATE" 2>/dev/null)
-if echo "$content" | python3 -c "import json,sys; d=json.load(sys.stdin); assert 'text' in d" 2>/dev/null; then
-  echo "$content"
-else
-  echo "$IDLE"
-fi
+# the app writes atomically (tmp + rename), so a torn read should be impossible;
+# this is a cheap belt-and-braces check that we got an object with a text field
+case "$content" in
+  '{'*'"text"'*'}') echo "$content" ;;
+  *) echo "$HIDDEN" ;;
+esac

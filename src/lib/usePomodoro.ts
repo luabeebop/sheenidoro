@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppSettings, DEFAULT_SETTINGS, PomodoroMode, Session, secsFor, nextMode } from './types'
+import { AppSettings, DEFAULT_SETTINGS, PomodoroMode, Session, WaybarSnapshot, secsFor, nextMode } from './types'
 
 type Status = 'idle' | 'running' | 'paused'
 
@@ -215,26 +215,27 @@ export function usePomodoro(initialSettings: AppSettings = DEFAULT_SETTINGS) {
     [mode, status, settings]
   )
 
-  // waybar sync every second while running/paused/idle
+  // Waybar: publish a snapshot on each transition only. The main process
+  // re-derives the countdown from `endsAt` and writes the file once a
+  // second, so the bar stays live even when this window is hidden and
+  // Chromium throttles our timers.
   useEffect(() => {
-    const api = (window as unknown as { sheenidoro?: { updateWaybar: (p: Record<string, unknown>) => void } }).sheenidoro
+    const api = (window as unknown as {
+      sheenidoro?: { setWaybarState: (s: WaybarSnapshot) => void }
+    }).sheenidoro
     if (!api) return
-    const secs = remainingSec
-    const total = secsFor(mode, settings)
-    const pct = total ? Math.round(((total - secs) / total) * 100) : 0
-    const mm = String(Math.floor(secs / 60)).padStart(2, '0')
-    const ss = String(secs % 60).padStart(2, '0')
-    const emoji = mode === 'focus' ? '🍅' : mode === 'shortBreak' ? '☕' : '🌸'
-    api.updateWaybar({
-      text: `${mm}:${ss} ${emoji}`,
-      tooltip: `${mode === 'focus' ? 'Focus' : mode === 'shortBreak' ? 'Short Break' : 'Long Break'} ${status === 'paused' ? '(paused)' : status === 'running' ? '● running' : '○ idle'} — ${mm}:${ss} left • ${focusCount} focus done`,
-      class: status === 'paused' ? 'paused' : mode === 'focus' ? 'focus' : 'break',
-      percentage: pct,
+    const running = status === 'running'
+    api.setWaybarState({
       mode,
       status,
-      remainingSec: secs,
+      remainingSec: running
+        ? Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000))
+        : pausedRemainingRef.current,
+      totalSec: secsFor(mode, settings),
+      endsAt: running ? endAtRef.current : null,
+      focusCount,
     })
-  }, [remainingSec, mode, status, focusCount, settings])
+  }, [mode, status, focusCount, settings])
 
   // cleanup
   useEffect(() => () => clearIntervalIf(), [])

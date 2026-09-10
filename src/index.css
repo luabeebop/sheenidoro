@@ -2,49 +2,264 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   SHEENIDORO — terminal brutalist / cyberpunk
+   Type + palette derived from aquirin.com:
+   Inconsolata mono, pure black/white, single red accent,
+   zero border-radius, 1px hairlines, steps() typewriter.
+   ============================================================ */
+
+@font-face {
+  font-family: 'Inconsolata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Inconsolata'), url('/fonts/inconsolata-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inconsolata';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Inconsolata Bold'), url('/fonts/inconsolata-700.woff2') format('woff2');
+}
+
+:root {
+  --void: #000000;
+  --panel: #07080a;
+  --panel2: #0d0f12;
+  --panel3: #14171b;
+  --line: #1e2227;
+  --line2: #2c3238;
+  --txt: #ffffff;
+  --dim: #8b9199;
+  --faint: #4c5259;
+
+  /* phase accents — red is aquirin's, cyan/amber carry the other two phases */
+  --hot: #ff0033;
+  --ice: #00e5ff;
+  --gold: #ffb000;
+
+  --accent: var(--hot);
+  --accent-glow: rgba(255, 0, 51, 0.5);
+
+  color-scheme: dark;
+}
+
 * {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inconsolata', 'JetBrainsMono Nerd Font', 'JetBrains Mono', ui-monospace, monospace;
+  border-radius: 0 !important;
+  font-variant-ligatures: none;
+}
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
-  background: #fff0f5;
-  color: #5c3a4a;
+  margin: 0;
+  background: var(--void);
+  color: var(--txt);
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.01em;
 }
 
-/* custom scrollbar - pastel */
+::selection {
+  background: var(--accent);
+  color: #000;
+}
+
+/* ---------- CRT / scanline atmosphere ---------- */
+
+.crt-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 3px,
+    rgba(0, 0, 0, 0.16) 3px 4px
+  );
+}
+
+.crt-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 68%, rgba(0, 0, 0, 0.38) 100%);
+}
+
+.crt-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  pointer-events: none;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: noise-shift 0.6s steps(3) infinite;
+}
+
+/* slow sweep bar, like a refreshing tube */
+.crt-sweep {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 140px;
+  z-index: 57;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.022), transparent);
+  animation: sweep 7s linear infinite;
+}
+
+@keyframes sweep {
+  0% { top: -140px; }
+  100% { top: 100%; }
+}
+
+@keyframes noise-shift {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-2%, 1%); }
+  66% { transform: translate(1%, -2%); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ---------- signature typewriter (aquirin) ---------- */
+
+.type {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+  animation: type 0.45s steps(var(--steps, 16), end) forwards;
+  vertical-align: bottom;
+}
+
+@keyframes type {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+.cursor::after {
+  content: '\2588';
+  margin-left: 0.15em;
+  animation: blink 1.05s steps(2, start) infinite;
+  color: var(--accent);
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ---------- technical frame: two opposing corner brackets ---------- */
+
+.brk {
+  position: relative;
+}
+.brk::before,
+.brk::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  border-color: var(--accent);
+  transition: border-color 0.3s;
+}
+.brk::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.brk::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+/* ---------- glow ---------- */
+
+.glow {
+  text-shadow: 0 0 12px var(--accent-glow), 0 0 34px var(--accent-glow);
+}
+.glow-soft {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.18);
+}
+
+.flicker {
+  animation: flicker 4.5s infinite steps(1);
+}
+@keyframes flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.72; }
+  98% { opacity: 1; }
+  99% { opacity: 0.85; }
+}
+
+/* chromatic split on phase change */
+.glitch {
+  animation: glitch 0.36s steps(2, end) 3;
+}
+@keyframes glitch {
+  0% { transform: translate(0); text-shadow: 0 0 12px var(--accent-glow); }
+  25% { transform: translate(-2px, 1px); text-shadow: 2px 0 var(--ice), -2px 0 var(--hot); }
+  50% { transform: translate(2px, -1px); text-shadow: -2px 0 var(--ice), 2px 0 var(--hot); }
+  100% { transform: translate(0); text-shadow: 0 0 12px var(--accent-glow); }
+}
+
+/* ---------- controls ---------- */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
-  background: #ffe4ec;
-  border-radius: 8px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
 }
 ::-webkit-scrollbar-thumb {
-  background: #f8c8d4;
-  border-radius: 8px;
+  background: var(--line2);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #f472b6;
+  background: var(--accent);
 }
 
-/* slider overrides */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
-  background: #ffe4ec;
-  border-radius: 9999px;
-  height: 6px;
+  background: var(--panel3);
+  height: 4px;
+  border: 1px solid var(--line);
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 18px;
+  width: 10px;
   height: 18px;
-  border-radius: 9999px;
-  background: #f472b6;
-  border: 3px solid white;
-  box-shadow: 0 2px 8px rgba(244,114,182,0.4);
+  background: var(--accent);
   cursor: pointer;
+}
+
+button {
+  cursor: pointer;
+  letter-spacing: 0.08em;
+}
+
+/* recharts hairlines */
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--line);
 }
