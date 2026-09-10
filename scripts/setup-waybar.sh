@@ -12,9 +12,19 @@ STATE_FILE="$STATE_DIR/waybar.json"
 echo "🌸 Sheenidoro waybar setup"
 
 mkdir -p "$STATE_DIR"
-if [ ! -f "$STATE_FILE" ]; then
-  echo '{"text":"○ 25:00 🍅","tooltip":"Sheenidoro idle — click to start","class":"idle","percentage":0}' > "$STATE_FILE"
-  echo "  created $STATE_FILE"
+# hide waybar when app not running — if file is stale (>7s), helper will hide,
+# but delete it now for immediate hide
+if [ -f "$STATE_FILE" ] && command -v stat >/dev/null 2>&1; then
+  mtime=$(stat -c %Y "$STATE_FILE" 2>/dev/null || stat -f %m "$STATE_FILE" 2>/dev/null || echo 0)
+  age=$(( $(date +%s) - mtime ))
+  if [ "$age" -gt 7 ]; then
+    rm -f "$STATE_FILE"
+    echo "  removed stale $STATE_FILE (age ${age}s → waybar hidden)"
+  else
+    echo "  keeping fresh $STATE_FILE (age ${age}s)"
+  fi
+else
+  echo "  no state file, waybar hidden until app starts"
 fi
 
 # install helper script to ~/.local/share
@@ -112,8 +122,23 @@ fi
 
 # --- style.css patch ---
 if [ -f "$STYLE" ]; then
-  if grep -q "custom-sheenidoro" "$STYLE"; then
-    echo "  style.css already contains sheenidoro, skipping"
+  if grep -q "custom-sheenidoro.hidden" "$STYLE"; then
+    echo "  style.css already contains sheenidoro hidden, skipping"
+  elif grep -q "custom-sheenidoro" "$STYLE"; then
+    cp "$STYLE" "$STYLE.bak.$(date +%s)"
+    cat >> "$STYLE" <<'CSS'
+
+/* Sheenidoro hidden when not running */
+#custom-sheenidoro.hidden {
+  opacity: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 0;
+}
+CSS
+    echo "  appended hidden style to $STYLE"
   else
     cp "$STYLE" "$STYLE.bak.$(date +%s)"
     cat >> "$STYLE" <<'CSS'
@@ -145,6 +170,14 @@ if [ -f "$STYLE" ]; then
 #custom-sheenidoro.idle {
   background: #fff0f5;
   color: #9d6b7a;
+}
+#custom-sheenidoro.hidden {
+  opacity: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 0;
 }
 CSS
     echo "  appended sheenidoro style to $STYLE"

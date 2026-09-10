@@ -76,6 +76,11 @@ All notable changes are recorded here. Project path: `/home/tartarus/Projects/po
 - `scripts/setup-waybar.sh:1` now installs helper to `~/.local/share/sheenidoro/waybar-sheenidoro.sh` and migrates old `cat ~/.local/state/.../waybar.json` exec to helper script path. Existing user config auto-migrated (verified: waybar reloaded, shows `custom/sheenidoro` after `clock`).
 - Branch `fix/waybar-stuck-idle` from `fix/waybar-notify-chime`, not `main`.
 
+## [1.0.3] — 2026-09-07 (fix/waybar-hide-when-closed)
+
+### Fixed
+- **Waybar shows when app not running**: user wants hidden when closed. Now `waybar-sheenidoro.sh:1` returns `{"text":"","class":"hidden"}` when file missing or stale (>7s), and `style.css` `#custom-sheenidoro.hidden {opacity:0; min-width:0; margin:0; padding:0;}` hides module. `electron/main.ts:108` `writeWaybarIdle()` now deletes `waybar.json` on `before-quit`/`quit` instead of writing idle, so helper hides immediately. `setup-waybar.sh` now removes stale file on setup if not running. Verified: no app → `bash waybar-sheenidoro.sh` → hidden, fresh timer → visible, stale 10s → hidden.
+
 ## [Unreleased]
 - Per-pomodoro notes
 - Heatmap calendar
