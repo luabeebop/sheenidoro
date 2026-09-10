@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, Session } from '../src/lib/types'
+import type { AppSettings, Session, WaybarSnapshot } from '../src/lib/types'
 
 contextBridge.exposeInMainWorld('sheenidoro', {
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke('sheenidoro:settings:get'),
@@ -14,14 +14,24 @@ contextBridge.exposeInMainWorld('sheenidoro', {
   playChime: () => ipcRenderer.send('sheenidoro:sound:chime'),
   testNotify: () => ipcRenderer.send('sheenidoro:notify:test'),
 
-  updateWaybar: (payload: Record<string, unknown>) => ipcRenderer.send('sheenidoro:waybar:update', payload),
+  setWaybarState: (snapshot: WaybarSnapshot) => ipcRenderer.send('sheenidoro:waybar:state', snapshot),
 
   // window controls for future if needed
   minimize: () => ipcRenderer.send('sheenidoro:window:minimize'),
   close: () => ipcRenderer.send('sheenidoro:window:close'),
 
-  onToggle: (cb: () => void) => ipcRenderer.on('sheenidoro:toggle', cb),
-  onSkip: (cb: () => void) => ipcRenderer.on('sheenidoro:skip', cb),
+  // return an unsubscribe: without one the renderer stacks up a listener per
+  // render, and a single waybar click then fires every stale handler at once
+  onToggle: (cb: () => void) => {
+    const h = () => cb()
+    ipcRenderer.on('sheenidoro:toggle', h)
+    return () => ipcRenderer.removeListener('sheenidoro:toggle', h)
+  },
+  onSkip: (cb: () => void) => {
+    const h = () => cb()
+    ipcRenderer.on('sheenidoro:skip', h)
+    return () => ipcRenderer.removeListener('sheenidoro:skip', h)
+  },
 })
 
 declare global {
@@ -36,11 +46,11 @@ declare global {
       notifyPhase: (c: string, n: string) => void
       playChime: () => void
       testNotify: () => void
-      updateWaybar: (p: Record<string, unknown>) => void
+      setWaybarState: (s: WaybarSnapshot) => void
       minimize: () => void
       close: () => void
-      onToggle: (cb: () => void) => void
-      onSkip: (cb: () => void) => void
+      onToggle: (cb: () => void) => () => void
+      onSkip: (cb: () => void) => () => void
     }
   }
 }

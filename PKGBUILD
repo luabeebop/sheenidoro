@@ -1,8 +1,8 @@
 # Maintainer: Sheenidoro <sheenidoro@local>
 pkgname=sheenidoro
-pkgver=1.0.0
+pkgver=2.0.0
 pkgrel=1
-pkgdesc="Pastel sakura pomodoro for Omarchy — Electron + React, track breaks"
+pkgdesc="Terminal-brutalist pomodoro for Omarchy — Electron + React, waybar timer"
 arch=('x86_64')
 url="https://github.com/local/sheenidoro"
 license=('MIT')
@@ -44,7 +44,7 @@ set -e
 APPDIR="/opt/sheenidoro"
 ELECTRON="/usr/bin/electron37"
 if [ ! -x "$ELECTRON" ]; then ELECTRON="electron"; fi
-exec "$ELECTRON" "$APPDIR/dist-electron/electron/main.js" "$@"
+exec "$ELECTRON" --class=Sheenidoro "$APPDIR" "$@"
 WRAP
   chmod +x "$pkgdir/usr/bin/sheenidoro"
 

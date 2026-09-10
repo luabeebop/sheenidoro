@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Sheenidoro
-Comment=Pastel sakura pomodoro — track breaks, stay focused 🍅
+Comment=Terminal-brutalist pomodoro — track focus and breaks
 Exec=sheenidoro %U
 Icon=sheenidoro
 Type=Application
