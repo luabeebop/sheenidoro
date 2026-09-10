@@ -62,6 +62,20 @@ All notable changes are recorded here. Project path: `/home/tartarus/Projects/po
 - `README.md` Waybar section now documents automatic setup.
 - Branch discipline enforced: this release developed on `fix/waybar-notify-chime`, not `main`.
 
+### Notes
+- 2026-09-07 — Sheena (girlfriend) feedback: prefers strawberry over tomato (pomodoro literal). Forgiven, keep tomato graphics for now. Strawberry swap prepared for future branch `fix/strawberry-for-sheena` if requested (replace `public/icon.svg`, PNGs, illustrations, emoji 🍓). No code change in 1.0.1.
+- Local continuity captured in `docs/session-2026-09-07.md:1` for next session.
+
+## [1.0.2] — 2026-09-07 (fix/waybar-stuck-idle)
+
+### Fixed
+- **Waybar stuck after dev closed**: `waybar.json` remained with stale timer after `npm run dev` (vite) stopped or app quit without cleanup. Now `electron/main.ts:405` `writeWaybarIdle()` on `before-quit`/`quit`, and `scripts/waybar-sheenidoro.sh:1` detects staleness (>7s via `stat` mtime) and returns idle `○ 25:00 🍅` instead of stale timer. Prevents stuck display when vite dies or electron hidden but timer not updating.
+- **Helper script**: migrated from simple `cat` to resilient script with JSON validation via python3.
+
+### Changed
+- `scripts/setup-waybar.sh:1` now installs helper to `~/.local/share/sheenidoro/waybar-sheenidoro.sh` and migrates old `cat ~/.local/state/.../waybar.json` exec to helper script path. Existing user config auto-migrated (verified: waybar reloaded, shows `custom/sheenidoro` after `clock`).
+- Branch `fix/waybar-stuck-idle` from `fix/waybar-notify-chime`, not `main`.
+
 ## [Unreleased]
 - Per-pomodoro notes
 - Heatmap calendar

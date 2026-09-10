@@ -17,6 +17,20 @@ if [ ! -f "$STATE_FILE" ]; then
   echo "  created $STATE_FILE"
 fi
 
+# install helper script to ~/.local/share
+HELPER_SRC="$(cd "$(dirname "$0")" && pwd)/waybar-sheenidoro.sh"
+HELPER_DST="$HOME/.local/share/sheenidoro/waybar-sheenidoro.sh"
+mkdir -p "$(dirname "$HELPER_DST")"
+if [ -f "$HELPER_SRC" ]; then
+  cp "$HELPER_SRC" "$HELPER_DST"
+  chmod +x "$HELPER_DST"
+  echo "  installed helper to $HELPER_DST"
+elif [ -f "/usr/share/sheenidoro/waybar-sheenidoro.sh" ]; then
+  mkdir -p "$(dirname "$HELPER_DST")"
+  cp "/usr/share/sheenidoro/waybar-sheenidoro.sh" "$HELPER_DST"
+  chmod +x "$HELPER_DST"
+fi
+
 # --- config.jsonc patch via python (handles jsonc comments) ---
 if [ -f "$CONFIG" ]; then
   cp "$CONFIG" "$CONFIG.bak.$(date +%s)"
@@ -50,10 +64,10 @@ except Exception as e:
     print("  Please add custom/sheenidoro manually per README.")
     raise SystemExit(1)
 
-# ensure custom/sheenidoro definition
+# ensure custom/sheenidoro definition (use helper script with stale detection)
 if "custom/sheenidoro" not in data:
     data["custom/sheenidoro"] = {
-        "exec": "cat ~/.local/state/sheenidoro/waybar.json",
+        "exec": "~/.local/share/sheenidoro/waybar-sheenidoro.sh",
         "return-type": "json",
         "interval": 1,
         "tooltip": True,
@@ -61,6 +75,12 @@ if "custom/sheenidoro" not in data:
         "on-click-right": "sheenidoro --show"
     }
     print("  added custom/sheenidoro module definition")
+else:
+    # migrate old cat exec to helper script for stale handling
+    old_exec = data["custom/sheenidoro"].get("exec", "")
+    if "cat " in old_exec and "waybar.json" in old_exec and "waybar-sheenidoro.sh" not in old_exec:
+        data["custom/sheenidoro"]["exec"] = "~/.local/share/sheenidoro/waybar-sheenidoro.sh"
+        print("  migrated exec from cat to helper script for stale handling")
 
 # ensure it's in modules-center or modules-right
 added = False
