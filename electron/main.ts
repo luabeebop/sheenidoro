@@ -105,6 +105,18 @@ function ensureWaybarDir() {
   return dir
 }
 
+function writeWaybarIdle() {
+  try {
+    const dir = ensureWaybarDir()
+    const file = path.join(dir, 'waybar.json')
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ text: '○ 25:00 🍅', tooltip: 'Sheenidoro not running — click to open', class: 'idle', percentage: 0 }),
+      'utf-8'
+    )
+  } catch {}
+}
+
 async function initStore() {
   const mod = await import('electron-store')
   Store = mod.default
@@ -402,4 +414,15 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+  writeWaybarIdle()
+})
+
+// also handle renderer crash / dev server stop — write idle so waybar doesn't stay stuck
+app.on('render-process-gone', () => {
+  // keep waybar stale check will handle, but also ensure we don't leave stale timer forever
+  // no-op: helper script handles stale >5s
+})
+
+app.on('quit', () => {
+  writeWaybarIdle()
 })
