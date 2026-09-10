@@ -2,6 +2,7 @@ import { app, BrowserWindow, Tray, Menu, Notification, ipcMain, nativeImage, dia
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -10,6 +11,9 @@ const __dirname = path.dirname(__filename)
 // dynamic import electron-store (ESM)
 let Store: any
 let store: any
+
+type PomodoroMode = 'focus' | 'shortBreak' | 'longBreak'
+type TimerStatus = 'idle' | 'running' | 'paused'
 
 type AppSettings = {
   focusMin: number
@@ -29,9 +33,39 @@ const DEFAULT_SETTINGS: AppSettings = {
   notifyEnabled: true,
 }
 
+const STATE_HOME =
+  process.env.XDG_STATE_HOME || path.join(process.env.HOME || os.homedir(), '.local/state')
+const WAYBAR_DIR = path.join(STATE_HOME, 'sheenidoro')
+const WAYBAR_FILE = path.join(WAYBAR_DIR, 'waybar.json')
+
+// Keeps the tray tooltip and notification identity consistent. Note the
+// Wayland app_id is NOT set from here: Electron reads it from package.json
+// during Ozone init, before this file runs, which is why the launchers point
+// at the app directory rather than straight at main.js — otherwise it falls
+// back to "Electron" and `class:Sheenidoro` window rules never match.
+app.setName('Sheenidoro')
+
+// setName also moves userData (~/.config/Sheenidoro), which would orphan the
+// settings and session history of anyone upgrading. Pin it back to the
+// lowercase path the app has always used and that the docs point at.
+app.setPath('userData', path.join(app.getPath('appData'), 'sheenidoro'))
+
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+
+/* ------------------------------------------------------------------ *
+ * --waybar: print current state and leave. Handled before anything
+ * else so it never spins up a window or contends for the app lock.
+ * ------------------------------------------------------------------ */
+if (process.argv.includes('--waybar')) {
+  try {
+    process.stdout.write(fs.readFileSync(WAYBAR_FILE, 'utf-8').trim() + '\n')
+  } catch {
+    process.stdout.write(JSON.stringify({ text: '', tooltip: '', class: 'hidden', percentage: 0 }) + '\n')
+  }
+  app.exit(0)
+}
 
 // single instance lock
 const gotLock = app.requestSingleInstanceLock()
@@ -40,83 +74,146 @@ if (!gotLock) {
 } else {
   app.on('second-instance', (_ev, argv) => {
     handleArgv(argv)
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.show()
-      win.focus()
-    }
   })
 }
 
+/**
+ * CLI verbs. `--toggle` and `--skip` act on the timer *without* pulling the
+ * window forward — they are driven from waybar clicks and the tray, where
+ * stealing focus would be hostile. Only `--show` raises the window.
+ */
 function handleArgv(argv: string[]) {
-  if (argv.includes('--toggle')) {
-    win?.webContents.send('sheenidoro:toggle')
-    // also toggle via hidden command: we send IPC but if renderer not ready, we store?
-    // minimal: show/hide window toggles play? renderer handles
-  }
-  if (argv.includes('--show')) {
-    win?.show()
-    win?.focus()
-  }
-  if (argv.includes('--waybar')) {
-    const f = path.join(app.getPath('userData'), '..', 'state', 'sheenidoro', 'waybar.json')
-    // fallback to xdg state
-    const alt = path.join(process.env.HOME || '', '.local/state/sheenidoro/waybar.json')
-    try {
-      const data = fs.readFileSync(fs.existsSync(f) ? f : alt, 'utf-8')
-      console.log(data)
-    } catch {
-      console.log(JSON.stringify({ text: '○ Sheenidoro', tooltip: 'Not running', class: 'idle', percentage: 0 }))
-    }
-    app.quit()
-  }
+  if (argv.includes('--toggle')) win?.webContents.send('sheenidoro:toggle')
+  if (argv.includes('--skip')) win?.webContents.send('sheenidoro:skip')
+  if (argv.includes('--show')) showWindow()
 }
-handleArgv(process.argv)
+
+function showWindow() {
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
 
 function getIconPath(size?: number) {
-  // in dev, resources at project root
-  const devIcon = path.join(process.cwd(), 'resources', size ? `icon-${size}.png` : 'icon.png')
-  if (fs.existsSync(devIcon)) return devIcon
-  // in packaged, extraResources or resources
-  const prodIcon = path.join(process.resourcesPath, 'icon.png')
-  if (fs.existsSync(prodIcon)) return prodIcon
-  const prodSized = path.join(process.resourcesPath, size ? `icon-${size}.png` : 'icon.png')
-  if (fs.existsSync(prodSized)) return prodSized
-  const alt = path.join(__dirname, '../../resources/icon.png')
-  if (fs.existsSync(alt)) return alt
-  const alt2 = path.join(__dirname, '../resources/icon.png')
-  if (fs.existsSync(alt2)) return alt2
-  return devIcon
+  const name = size ? `icon-${size}.png` : 'icon.png'
+  const candidates = [
+    path.join(process.cwd(), 'resources', name),
+    path.join(process.resourcesPath || '', name),
+    path.join(__dirname, '../../resources', name),
+    path.join(__dirname, '../resources', name),
+  ]
+  return candidates.find((c) => c && fs.existsSync(c)) || candidates[0]
 }
 
 function getTrayIconPath() {
-  const dev = path.join(process.cwd(), 'resources', 'tray.png')
-  if (fs.existsSync(dev)) return dev
-  const prod = path.join(process.resourcesPath, 'tray.png')
-  if (fs.existsSync(prod)) return prod
-  const alt = path.join(__dirname, '../../resources/tray.png')
-  if (fs.existsSync(alt)) return alt
-  return dev
+  const candidates = [
+    path.join(process.cwd(), 'resources', 'tray.png'),
+    path.join(process.resourcesPath || '', 'tray.png'),
+    path.join(__dirname, '../../resources/tray.png'),
+  ]
+  return candidates.find((c) => c && fs.existsSync(c)) || candidates[0]
 }
+
+/* ================================================================== *
+ * WAYBAR
+ *
+ * The main process owns the waybar file, not the renderer. A hidden
+ * BrowserWindow gets its timers throttled hard by Chromium, which used
+ * to stall the file and make the module vanish mid-session. Main-process
+ * timers are never throttled, so the countdown here stays truthful even
+ * while the window sits in the tray.
+ * ================================================================== */
+
+type WaybarSnapshot = {
+  mode: PomodoroMode
+  status: TimerStatus
+  remainingSec: number
+  totalSec: number
+  endsAt: number | null // epoch ms; set only while running
+  focusCount: number
+}
+
+const GLYPH: Record<PomodoroMode, string> = { focus: '◆', shortBreak: '▲', longBreak: '■' }
+const PHASE_LABEL: Record<PomodoroMode, string> = {
+  focus: 'Focus',
+  shortBreak: 'Short break',
+  longBreak: 'Long break',
+}
+const PHASE_CLASS: Record<PomodoroMode, string> = { focus: 'focus', shortBreak: 'short', longBreak: 'long' }
+
+let snapshot: WaybarSnapshot | null = null
+let waybarTimer: NodeJS.Timeout | null = null
 
 function ensureWaybarDir() {
-  const dir = path.join(process.env.HOME || app.getPath('home'), '.local/state/sheenidoro')
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
+  fs.mkdirSync(WAYBAR_DIR, { recursive: true })
+  return WAYBAR_DIR
 }
 
-function writeWaybarIdle() {
+/** Write via temp file + rename so waybar can never read a half-written file. */
+function writeWaybarFile(payload: Record<string, unknown>) {
   try {
-    const dir = ensureWaybarDir()
-    const file = path.join(dir, 'waybar.json')
-    // delete file so waybar hides (user wants no timer when app not running)
-    if (fs.existsSync(file)) fs.unlinkSync(file)
+    ensureWaybarDir()
+    const tmp = `${WAYBAR_FILE}.${process.pid}.tmp`
+    fs.writeFileSync(tmp, JSON.stringify(payload), 'utf-8')
+    fs.renameSync(tmp, WAYBAR_FILE)
+  } catch {
+    /* waybar is optional — never let it break the app */
+  }
+}
+
+/** Remove the file so the waybar module collapses while we are not running. */
+function clearWaybarFile() {
+  try {
+    if (fs.existsSync(WAYBAR_FILE)) fs.unlinkSync(WAYBAR_FILE)
   } catch {}
 }
 
-function writeWaybarHidden() {
-  writeWaybarIdle()
+function mmss(total: number) {
+  const m = Math.floor(Math.max(0, total) / 60)
+  const s = Math.max(0, total) % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
+
+function renderWaybar() {
+  if (!snapshot) return
+  const s = snapshot
+
+  // recompute from the deadline so a throttled renderer cannot desync us
+  const remaining =
+    s.status === 'running' && s.endsAt
+      ? Math.max(0, Math.round((s.endsAt - Date.now()) / 1000))
+      : s.remainingSec
+
+  const pct = s.totalSec ? Math.round(((s.totalSec - remaining) / s.totalSec) * 100) : 0
+  const held = s.status === 'paused'
+  const text = `${held ? '▮▮' : GLYPH[s.mode]} ${mmss(remaining)}`
+  const state = s.status === 'running' ? '● running' : held ? '▮▮ held' : '○ standby'
+
+  writeWaybarFile({
+    text,
+    tooltip: `${PHASE_LABEL[s.mode]} ${state} — ${mmss(remaining)} left · ${s.focusCount} focus done`,
+    class: held ? 'paused' : s.status === 'idle' ? 'idle' : PHASE_CLASS[s.mode],
+    percentage: pct,
+    mode: s.mode,
+    status: s.status,
+    remainingSec: remaining,
+  })
+}
+
+function startWaybarLoop() {
+  if (waybarTimer) return
+  waybarTimer = setInterval(renderWaybar, 1000)
+}
+
+function stopWaybarLoop() {
+  if (waybarTimer) {
+    clearInterval(waybarTimer)
+    waybarTimer = null
+  }
+}
+
+/* ================================================================== */
 
 async function initStore() {
   const mod = await import('electron-store')
@@ -141,10 +238,9 @@ function createWindow() {
     x: bounds?.x,
     y: bounds?.y,
     show: false,
-    backgroundColor: '#fff0f5',
+    backgroundColor: '#000000',
     title: 'Sheenidoro',
     icon: getIconPath(),
-    // native Hyprland header per spec
     frame: true,
     titleBarStyle: 'default',
     autoHideMenuBar: true,
@@ -153,21 +249,19 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // keep the renderer's timers running while hidden in the tray, so
+      // phase-end chimes and notifications fire on time rather than late
+      backgroundThrottling: false,
     },
   })
 
-  // load
   const isDev = !app.isPackaged
   if (isDev) {
-    // vite dev server
     win.loadURL('http://localhost:5173')
-    win.webContents.openDevTools({ mode: 'detach' })
   } else {
-    // dist-electron/electron -> ../../dist
     const prodDist = path.join(__dirname, '../../dist/index.html')
     const altDist = path.join(process.resourcesPath, 'app/dist/index.html')
-    const target = fs.existsSync(prodDist) ? prodDist : altDist
-    win.loadFile(target)
+    win.loadFile(fs.existsSync(prodDist) ? prodDist : altDist)
   }
 
   win.once('ready-to-show', () => win?.show())
@@ -175,9 +269,7 @@ function createWindow() {
   win.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault()
-      win?.hide()
-      // hide to tray, keep running
-      return
+      win?.hide() // tray-resident: the timer keeps running
     }
   })
 
@@ -193,58 +285,37 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = getTrayIconPath()
-  let img = nativeImage.createFromPath(iconPath)
+  let img = nativeImage.createFromPath(getTrayIconPath())
   if (img.isEmpty()) {
-    // fallback to main icon resized
-    const main = nativeImage.createFromPath(getIconPath(32))
-    img = main.resize({ width: 22, height: 22 })
+    img = nativeImage.createFromPath(getIconPath(32)).resize({ width: 22, height: 22 })
   }
   tray = new Tray(img)
-  tray.setToolTip('Sheenidoro — pastel pomodoro 🍅')
-  const menu = Menu.buildFromTemplate([
-    {
-      label: 'Show Sheenidoro',
-      click: () => {
-        win?.show()
-        win?.focus()
+  tray.setToolTip('Sheenidoro')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Show Sheenidoro', click: showWindow },
+      { label: 'Toggle timer', click: () => win?.webContents.send('sheenidoro:toggle') },
+      { label: 'Skip phase', click: () => win?.webContents.send('sheenidoro:skip') },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        },
       },
-    },
-    {
-      label: 'Toggle Timer (Space)',
-      click: () => win?.webContents.send('sheenidoro:toggle'),
-    },
-    {
-      label: 'Skip Phase',
-      click: () => win?.webContents.send('sheenidoro:skip'),
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        isQuitting = true
-        app.quit()
-      },
-    },
-  ])
-  tray.setContextMenu(menu)
+    ])
+  )
   tray.on('click', () => {
     if (win?.isVisible()) win.hide()
-    else {
-      win?.show()
-      win?.focus()
-    }
+    else showWindow()
   })
-  tray.on('double-click', () => {
-    win?.show()
-    win?.focus()
-  })
+  tray.on('double-click', showWindow)
 }
 
 function notifyViaMako(title: string, body: string) {
   try {
-    const icon = getIconPath(64)
-    const child = spawn('notify-send', ['-a', 'Sheenidoro', '-u', 'critical', '-i', icon, title, body], {
+    const child = spawn('notify-send', ['-a', 'Sheenidoro', '-u', 'critical', '-i', getIconPath(64), title, body], {
       detached: true,
       stdio: 'ignore',
     })
@@ -259,102 +330,72 @@ function playChimePaplay() {
       path.join(process.cwd(), 'public/sounds/chime.wav'),
       path.join(__dirname, '../../assets/sounds/chime.wav'),
       path.join(__dirname, '../../public/sounds/chime.wav'),
-      path.join(process.resourcesPath, 'assets/sounds/chime.wav'),
-      path.join(process.resourcesPath, 'app/assets/sounds/chime.wav'),
+      path.join(process.resourcesPath || '', 'assets/sounds/chime.wav'),
+      path.join(process.resourcesPath || '', 'app/assets/sounds/chime.wav'),
     ]
-    const p = candidates.find((c) => fs.existsSync(c))
-    if (p) {
-      spawn('paplay', [p], { stdio: 'ignore', detached: true }).unref()
-    } else {
-      // fallback beep via pw-play or aplay
-      spawn('paplay', ['--version'], { stdio: 'ignore' }).on('error', () => {})
-    }
+    const p = candidates.find((c) => c && fs.existsSync(c))
+    if (p) spawn('paplay', [p], { stdio: 'ignore', detached: true }).unref()
   } catch {}
 }
 
 function showNotification(completed: string, next: string) {
-  const isFocusDone = completed === 'focus'
-  const title = isFocusDone ? 'Focus complete! 🍅' : 'Break over! 🌸'
-  let body = ''
-  if (isFocusDone) {
-    if (next === 'longBreak') body = `Time for a long break — 15 min to rest 🌸. Click Start when ready.`
-    else body = `Take a short break — 5 min ☕. Click Start when ready.`
-    // use settings durations if available
+  const s = (() => {
     try {
-      const s = store.get('settings') as AppSettings
-      if (next === 'shortBreak') body = `Take a short break — ${s.shortBreakMin} min ☕. Click Start when ready.`
-      if (next === 'longBreak') body = `Time for a long break — ${s.longBreakMin} min 🌸. Click Start when ready.`
-    } catch {}
-  } else {
-    try {
-      const s = store.get('settings') as AppSettings
-      body = `Break over! Back to focus — ${s.focusMin} min 🍅. Click Start.`
+      return store.get('settings') as AppSettings
     } catch {
-      body = 'Break over! Back to focus 🍅. Click Start.'
+      return DEFAULT_SETTINGS
     }
-  }
+  })()
 
-  const icon = getIconPath(128)
-  // Electron notification (works with mako)
+  const isFocusDone = completed === 'focus'
+  const title = isFocusDone ? 'FOCUS COMPLETE' : 'BREAK OVER'
+  const body = isFocusDone
+    ? next === 'longBreak'
+      ? `Long break — ${s.longBreakMin} min. Press Start when ready.`
+      : `Short break — ${s.shortBreakMin} min. Press Start when ready.`
+    : `Back to focus — ${s.focusMin} min. Press Start when ready.`
+
   try {
-    const n = new Notification({
-      title,
-      body,
-      icon,
-      urgency: 'critical' as const,
-    })
-    n.on('click', () => {
-      win?.show()
-      win?.focus()
-    })
+    const n = new Notification({ title, body, icon: getIconPath(128), urgency: 'critical' as const })
+    n.on('click', showWindow)
     n.show()
   } catch {}
 
-  // also fallback to notify-send to ensure critical
   notifyViaMako(title, body)
 
-  // play chime via paplay if enabled (catchy!)
-  try {
-    const s = store?.get('settings') as AppSettings | undefined
-    if (s?.soundEnabled !== false) {
-      playChimePaplay()
-    }
-  } catch {}
+  if (s.soundEnabled !== false) playChimePaplay()
 
-  // flash window
   win?.flashFrame(true)
   setTimeout(() => win?.flashFrame(false), 3000)
-  // Hyprland urgent
-  try {
-    spawn('hyprctl', ['dispatch', 'bringactivetowindow', 'class:Sheenidoro'], { stdio: 'ignore', detached: true }).unref()
-  } catch {}
 }
 
 function setupIpc() {
-  ipcMain.handle('sheenidoro:settings:get', () => {
-    return store.get('settings') as AppSettings
-  })
-  ipcMain.on('sheenidoro:settings:set', (_e, s: AppSettings) => {
-    store.set('settings', s)
-  })
-  ipcMain.handle('sheenidoro:sessions:list', () => {
-    return store.get('sessions') as unknown[]
-  })
+  ipcMain.handle('sheenidoro:settings:get', () => store.get('settings') as AppSettings)
+  ipcMain.on('sheenidoro:settings:set', (_e, s: AppSettings) => store.set('settings', s))
+
+  ipcMain.handle('sheenidoro:sessions:list', () => store.get('sessions') as unknown[])
   ipcMain.on('sheenidoro:sessions:add', (_e, s) => {
     const arr = (store.get('sessions') as unknown[]) || []
     arr.unshift(s)
-    // cap
     if (arr.length > 10000) arr.length = 10000
     store.set('sessions', arr)
   })
-  ipcMain.on('sheenidoro:sessions:clear', () => {
-    store.set('sessions', [])
-  })
+  ipcMain.on('sheenidoro:sessions:clear', () => store.set('sessions', []))
   ipcMain.handle('sheenidoro:sessions:export', async () => {
-    const sessions = (store.get('sessions') as { id: string; mode: string; plannedSec: number; actualSec: number; startedAt: string; endedAt: string; status: string }[]) || []
+    const sessions =
+      (store.get('sessions') as {
+        id: string
+        mode: string
+        plannedSec: number
+        actualSec: number
+        startedAt: string
+        endedAt: string
+        status: string
+      }[]) || []
     const header = 'id,mode,plannedSec,actualSec,startedAt,endedAt,status\n'
-    const rows = sessions.map((s) => `${s.id},${s.mode},${s.plannedSec},${s.actualSec},${s.startedAt},${s.endedAt},${s.status}`).join('\n')
-    const content = header + rows
+    const rows = sessions
+      .map((s) => `${s.id},${s.mode},${s.plannedSec},${s.actualSec},${s.startedAt},${s.endedAt},${s.status}`)
+      .join('\n')
     const defaultPath = path.join(app.getPath('documents') || app.getPath('home'), 'sheenidoro-history.csv')
     const { canceled, filePath } = await dialog.showSaveDialog(win!, {
       title: 'Export Sheenidoro history',
@@ -362,28 +403,20 @@ function setupIpc() {
       filters: [{ name: 'CSV', extensions: ['csv'] }],
     })
     if (canceled || !filePath) return defaultPath
-    fs.writeFileSync(filePath, content, 'utf-8')
+    fs.writeFileSync(filePath, header + rows, 'utf-8')
     return filePath
   })
 
-  ipcMain.on('sheenidoro:notify:phase', (_e, completed: string, next: string) => {
-    showNotification(completed, next)
+  ipcMain.on('sheenidoro:notify:phase', (_e, completed: string, next: string) => showNotification(completed, next))
+  ipcMain.on('sheenidoro:notify:test', () => showNotification('focus', 'shortBreak'))
+  ipcMain.on('sheenidoro:sound:chime', () => playChimePaplay())
+
+  // renderer reports phase transitions; main drives the per-second rendering
+  ipcMain.on('sheenidoro:waybar:state', (_e, next: WaybarSnapshot) => {
+    snapshot = next
+    renderWaybar()
   })
-  ipcMain.on('sheenidoro:notify:test', () => {
-    showNotification('focus', 'shortBreak')
-    // also ensure chime plays even if showNotification already did — double ensure for test
-    playChimePaplay()
-  })
-  ipcMain.on('sheenidoro:sound:chime', () => {
-    playChimePaplay()
-  })
-  ipcMain.on('sheenidoro:waybar:update', (_e, payload: Record<string, unknown>) => {
-    try {
-      const dir = ensureWaybarDir()
-      const file = path.join(dir, 'waybar.json')
-      fs.writeFileSync(file, JSON.stringify(payload), 'utf-8')
-    } catch {}
-  })
+
   ipcMain.on('sheenidoro:window:minimize', () => win?.minimize())
   ipcMain.on('sheenidoro:window:close', () => win?.hide())
 }
@@ -391,39 +424,49 @@ function setupIpc() {
 app.whenReady().then(async () => {
   await initStore()
   ensureWaybarDir()
-  // initial waybar idle file if not exists
-  const wb = path.join(ensureWaybarDir(), 'waybar.json')
-  if (!fs.existsSync(wb)) {
-    fs.writeFileSync(wb, JSON.stringify({ text: '○ 25:00 🍅', tooltip: 'Sheenidoro idle — click to start', class: 'idle', percentage: 0 }))
+
+  // seed from stored settings so the very first paint is correct
+  const s = (store.get('settings') as AppSettings) || DEFAULT_SETTINGS
+  snapshot = {
+    mode: 'focus',
+    status: 'idle',
+    remainingSec: s.focusMin * 60,
+    totalSec: s.focusMin * 60,
+    endsAt: null,
+    focusCount: 0,
   }
+  renderWaybar()
+  startWaybarLoop()
+
   setupIpc()
   createWindow()
   createTray()
+  handleArgv(process.argv)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    else win?.show()
+    else showWindow()
   })
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    // keep tray alive unless quitting
-    if (isQuitting) app.quit()
-  }
+  if (process.platform !== 'darwin' && isQuitting) app.quit()
 })
 
-app.on('before-quit', () => {
+/** Leave no stale timer behind: the module hides the moment we are gone. */
+function teardown() {
   isQuitting = true
-  writeWaybarIdle()
-})
+  stopWaybarLoop()
+  clearWaybarFile()
+}
 
-// also handle renderer crash / dev server stop — write idle so waybar doesn't stay stuck
-app.on('render-process-gone', () => {
-  // keep waybar stale check will handle, but also ensure we don't leave stale timer forever
-  // no-op: helper script handles stale >5s
-})
+app.on('before-quit', teardown)
+app.on('quit', teardown)
 
-app.on('quit', () => {
-  writeWaybarIdle()
-})
+// dev: `electron .` killed with Ctrl-C never reaches before-quit
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+  process.on(sig, () => {
+    teardown()
+    app.exit(0)
+  })
+}

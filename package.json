@@ -1,7 +1,8 @@
 {
   "name": "sheenidoro",
-  "version": "1.0.0",
-  "description": "Pastel sakura Pomodoro for Omarchy — track breaks, stay focused 🍅",
+  "productName": "Sheenidoro",
+  "version": "2.0.0",
+  "description": "Terminal-brutalist Pomodoro for Omarchy — focus, breaks, waybar timer",
   "author": "Sheenidoro",
   "license": "MIT",
   "private": true,
@@ -64,7 +65,9 @@
       {
         "from": "assets",
         "to": "assets",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ]
   }

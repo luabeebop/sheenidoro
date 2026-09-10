@@ -28,11 +28,18 @@ export interface Session {
   status: 'completed' | 'skipped' | 'interrupted'
 }
 
-export interface WaybarState {
-  text: string
-  tooltip: string
-  class: string
-  percentage: number
+/**
+ * What the renderer hands the main process on each phase transition.
+ * Main re-derives the countdown from `endsAt`, so it stays correct even
+ * when the window is hidden and the renderer's timers are throttled.
+ */
+export interface WaybarSnapshot {
+  mode: PomodoroMode
+  status: 'idle' | 'running' | 'paused'
+  remainingSec: number
+  totalSec: number
+  endsAt: number | null
+  focusCount: number
 }
 
 export function secsFor(mode: PomodoroMode, s: AppSettings): number {

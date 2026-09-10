@@ -1,8 +1,21 @@
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Session } from '../lib/types'
-import { fmtDate, fmtHuman, startOfWeek } from '../lib/format'
+import { fmtHuman, startOfWeek } from '../lib/format'
+import { PHASE } from '../lib/theme'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { IllustEmpty } from '../assets/illustrations/IllustFocus'
+
+const STATUS_STYLE: Record<Session['status'], { label: string; className: string; style?: CSSProperties }> = {
+  completed: { label: 'OK', className: 'text-txt' },
+  skipped: { label: 'SKIP', className: 'text-faint' },
+  interrupted: { label: 'ABORT', className: '', style: { color: '#ffb000' } },
+}
+
+function logStamp(iso: string) {
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export function HistoryView({
   sessions,
@@ -17,7 +30,8 @@ export function HistoryView({
 
   const filtered = useMemo(() => {
     if (filter === 'all') return sessions
-    if (filter === 'today') return sessions.filter((s) => new Date(s.startedAt).toDateString() === new Date().toDateString())
+    if (filter === 'today')
+      return sessions.filter((s) => new Date(s.startedAt).toDateString() === new Date().toDateString())
     const start = startOfWeek()
     return sessions.filter((s) => new Date(s.startedAt) >= start)
   }, [sessions, filter])
@@ -30,7 +44,9 @@ export function HistoryView({
     const breakMinToday = Math.round(breakToday.reduce((a, b) => a + b.actualSec, 0) / 60)
     const totalFocus = sessions.filter((s) => s.mode === 'focus' && s.status === 'completed').length
     const totalBreak = sessions.filter((s) => s.mode !== 'focus').length
-    const completion = sessions.length ? Math.round((sessions.filter((s) => s.status === 'completed').length / sessions.length) * 100) : 0
+    const completion = sessions.length
+      ? Math.round((sessions.filter((s) => s.status === 'completed').length / sessions.length) * 100)
+      : 0
     return { focusToday: focusToday.length, breakToday: breakToday.length, focusMinToday, breakMinToday, totalFocus, totalBreak, completion }
   }, [sessions])
 
@@ -40,126 +56,166 @@ export function HistoryView({
     for (let i = 0; i < 7; i++) {
       const d = new Date(start)
       d.setDate(start.getDate() + i)
-      const label = d.toLocaleDateString(undefined, { weekday: 'short' })
       const daySessions = sessions.filter((s) => new Date(s.startedAt).toDateString() === d.toDateString())
       days.push({
-        name: label,
-        focus: Math.round(daySessions.filter((s) => s.mode === 'focus' && s.status === 'completed').reduce((a, b) => a + b.actualSec, 0) / 60),
-        breaks: Math.round(daySessions.filter((s) => s.mode !== 'focus' && s.status === 'completed').reduce((a, b) => a + b.actualSec, 0) / 60),
+        name: d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3).toUpperCase(),
+        focus: Math.round(
+          daySessions.filter((s) => s.mode === 'focus' && s.status === 'completed').reduce((a, b) => a + b.actualSec, 0) / 60
+        ),
+        breaks: Math.round(
+          daySessions.filter((s) => s.mode !== 'focus' && s.status === 'completed').reduce((a, b) => a + b.actualSec, 0) / 60
+        ),
       })
     }
     return days
   }, [sessions])
 
   return (
-    <div className="flex-1 overflow-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 overflow-auto p-5 space-y-5">
+      {/* ── header ─────────────────────────────────────── */}
+      <div className="flex items-end justify-between border-b border-line pb-3">
         <div>
-          <h2 className="text-xl font-bold text-sakuraText">Break Review</h2>
-          <p className="text-sm text-sakuraMuted">Your focus & rest history</p>
+          <h2 className="text-[14px] font-bold tracking-hud">
+            <span className="text-faint">//</span> SESSION LOGS
+          </h2>
+          <p className="text-[10px] text-faint tracking-wide2 mt-1">LOCAL STORE · ~/.config/sheenidoro</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={onExport} className="px-4 py-2 rounded-full bg-white border border-sakuraBorder text-sm font-semibold text-sakuraText hover:bg-sakuraBg2">
-            Export CSV
+          <button
+            onClick={onExport}
+            className="px-3.5 py-1.5 text-[10px] font-bold tracking-hud border border-line2 text-dim hover:text-txt hover:border-dim transition-colors"
+          >
+            EXPORT CSV
           </button>
           <button
             onClick={onClear}
-            className="px-4 py-2 rounded-full bg-sakuraBg2 border border-sakuraAccent text-sm font-semibold text-sakuraMuted hover:text-sakuraText"
+            className="px-3.5 py-1.5 text-[10px] font-bold tracking-hud border border-line2 text-dim hover:border-hot transition-colors hover:text-hot"
           >
-            Clear
+            PURGE
           </button>
         </div>
       </div>
 
-      {/* stats */}
+      {/* ── stat tiles ─────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Focus today" value={`${stats.focusToday} ×`} sub={`${stats.focusMinToday}m`} />
-        <Stat label="Breaks today" value={`${stats.breakToday} ×`} sub={`${stats.breakMinToday}m`} />
-        <Stat label="Total focus" value={`${stats.totalFocus}`} sub={`${stats.totalBreak} breaks`} />
-        <Stat label="Completion" value={`${stats.completion}%`} sub={`${sessions.length} sessions`} />
+        <Stat label="FOCUS TODAY" value={String(stats.focusToday).padStart(2, '0')} sub={`${stats.focusMinToday} MIN`} accent={PHASE.focus.hex} />
+        <Stat label="BREAKS TODAY" value={String(stats.breakToday).padStart(2, '0')} sub={`${stats.breakMinToday} MIN`} accent={PHASE.shortBreak.hex} />
+        <Stat label="TOTAL FOCUS" value={String(stats.totalFocus)} sub={`${stats.totalBreak} BREAKS`} accent={PHASE.longBreak.hex} />
+        <Stat label="COMPLETION" value={`${stats.completion}%`} sub={`${sessions.length} RECORDS`} accent="#ffffff" />
       </div>
 
-      {/* chart */}
-      <div className="bg-white rounded-2xl border border-sakuraBorder p-4 shadow-sakura">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-bold text-sakuraText text-sm">Weekly overview (minutes)</h3>
-          <span className="text-[11px] text-sakuraMuted">Mon → Sun</span>
+      {/* ── chart ──────────────────────────────────────── */}
+      <div className="border border-line bg-panel p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-[11px] font-bold tracking-hud">
+            <span className="text-faint">//</span> WEEKLY THROUGHPUT
+          </h3>
+          <div className="flex items-center gap-3 text-[9px] tracking-wide2 text-faint">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 inline-block" style={{ background: PHASE.focus.hex }} /> FOCUS
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 inline-block" style={{ background: '#00879b' }} /> BREAK
+            </span>
+            <span>MIN · MON→SUN</span>
+          </div>
         </div>
-        <div className="h-[180px]">
+        <div className="h-[172px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weeklyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffe4ec" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9d6b7a' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9d6b7a' }} axisLine={false} tickLine={false} width={30} />
+            <BarChart data={weeklyData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#1e2227" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b9199' }} axisLine={{ stroke: '#1e2227' }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#8b9199' }} axisLine={false} tickLine={false} width={34} />
               <Tooltip
-                contentStyle={{ borderRadius: 12, borderColor: '#f8c8d4', fontSize: 12 }}
-                cursor={{ fill: '#fff0f5' }}
+                contentStyle={{
+                  background: '#0d0f12',
+                  border: '1px solid #2c3238',
+                  fontSize: 11,
+                  fontFamily: 'Inconsolata, monospace',
+                  color: '#fff',
+                }}
+                labelStyle={{ color: '#8b9199' }}
+                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
               />
-              <Bar dataKey="focus" fill="#f472b6" radius={[6, 6, 0, 0]} name="Focus" />
-              <Bar dataKey="breaks" fill="#f8c8d4" radius={[6, 6, 0, 0]} name="Break" />
+              <Bar dataKey="focus" fill={PHASE.focus.hex} name="FOCUS" />
+              <Bar dataKey="breaks" fill="#00879b" name="BREAK" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* filters */}
-      <div className="flex gap-2">
-        {(['all', 'today', 'week'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold capitalize border ${
-              filter === f ? 'bg-sakuraPrimary text-white border-sakuraPrimary' : 'bg-white text-sakuraMuted border-sakuraBorder hover:border-sakuraAccent'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-sakuraMuted self-center">{filtered.length} sessions</span>
+      {/* ── filters ────────────────────────────────────── */}
+      <div className="flex items-center gap-4">
+        <div className="flex border border-line w-fit">
+          {(['all', 'today', 'week'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-1.5 text-[10px] font-bold tracking-hud border-r border-line last:border-r-0 transition-colors ${
+                filter === f ? 'bg-panel2 text-txt' : 'text-faint hover:text-dim'
+              }`}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] text-faint tracking-wide2">
+          {String(filtered.length).padStart(3, '0')} RECORDS
+        </span>
       </div>
 
-      {/* list */}
+      {/* ── log rows ───────────────────────────────────── */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-10 bg-white rounded-2xl border border-sakuraBorder">
-          <IllustEmpty />
-          <p className="text-sm text-sakuraMuted mt-3">No sessions for this filter yet.</p>
+        <div className="border border-dashed border-line2 py-12 text-center">
+          <div className="text-[11px] tracking-hud text-faint">[ NO RECORDS ]</div>
+          <div className="text-[10px] tracking-wide2 text-faint mt-2 opacity-60">
+            run a cycle to populate the log
+          </div>
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((s) => (
-            <div key={s.id} className="bg-white rounded-2xl border border-sakuraBorder p-3.5 flex items-center gap-3 hover:shadow-sakura transition">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0 ${s.mode === 'focus' ? 'bg-sakuraBg2' : 'bg-sakuraBg'}`}>
-                {s.mode === 'focus' ? '🍅' : s.mode === 'shortBreak' ? '☕' : '🌸'}
+        <div className="border border-line">
+          <div className="flex items-center gap-3 px-3 py-1.5 border-b border-line bg-panel2 text-[9px] tracking-hud text-faint">
+            <span className="w-[86px]">STAMP</span>
+            <span className="flex-1">PHASE</span>
+            <span className="w-[70px] text-right">PLANNED</span>
+            <span className="w-[70px] text-right">ACTUAL</span>
+            <span className="w-[52px] text-right">STATE</span>
+          </div>
+          {filtered.map((s) => {
+            const phase = PHASE[s.mode]
+            const st = STATUS_STYLE[s.status]
+            return (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 px-3 py-2 border-b border-line last:border-b-0 text-[11px] hover:bg-panel2 transition-colors"
+              >
+                <span className="w-[86px] text-faint tabular-nums">{logStamp(s.startedAt)}</span>
+                <span className="flex-1 flex items-center gap-2">
+                  <span style={{ color: phase.hex }}>{phase.glyph}</span>
+                  <span className="text-dim tracking-wide2">{phase.label}</span>
+                </span>
+                <span className="w-[70px] text-right text-faint tabular-nums">{fmtHuman(s.plannedSec)}</span>
+                <span className="w-[70px] text-right text-txt tabular-nums">{fmtHuman(s.actualSec)}</span>
+                <span className={`w-[52px] text-right font-bold tracking-wide2 ${st.className}`} style={st.style}>
+                  {st.label}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sakuraText text-sm capitalize">{s.mode === 'focus' ? 'Focus' : s.mode === 'shortBreak' ? 'Short Break' : 'Long Break'}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${s.status === 'completed' ? 'bg-green-50 text-green-700 border border-green-200' : s.status === 'skipped' ? 'bg-gray-50 text-gray-600 border border-gray-200' : 'bg-orange-50 text-orange-700 border border-orange-200'}`}>
-                    {s.status}
-                  </span>
-                </div>
-                <div className="text-xs text-sakuraMuted truncate">
-                  {fmtDate(s.startedAt)} • {fmtHuman(s.plannedSec)} planned • {fmtHuman(s.actualSec)} actual
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className="text-xs font-mono font-bold text-sakuraText">{fmtHuman(s.actualSec)}</div>
-                <div className="text-[11px] text-sakuraMuted">{new Date(s.startedAt).toLocaleDateString()}</div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
+function Stat({ label, value, sub, accent }: { label: string; value: string; sub: string; accent: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-sakuraBorder p-4 shadow-sm">
-      <div className="text-[11px] tracking-widest font-bold text-sakuraMuted uppercase">{label}</div>
-      <div className="text-2xl font-bold text-sakuraText mt-1">{value}</div>
-      <div className="text-xs text-sakuraMuted">{sub}</div>
+    <div className="border border-line bg-panel p-3.5 brk" style={{ ['--accent' as string]: accent } as CSSProperties}>
+      <div className="text-[9px] tracking-hud text-faint">{label}</div>
+      <div className="text-[28px] font-bold leading-none mt-2 tabular-nums" style={{ color: accent }}>
+        {value}
+      </div>
+      <div className="text-[10px] text-dim tracking-wide2 mt-1.5">{sub}</div>
     </div>
   )
 }

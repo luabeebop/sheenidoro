@@ -1,216 +1,196 @@
-# Sheenidoro 🍅 — Pastel Sakura Pomodoro for Omarchy
+# Sheenidoro — terminal-brutalist Pomodoro for Omarchy
 
-React + Electron pomodoro with native Hyprland window, mako notifications, tray hide-on-close, and break history review. Pastel sakura pink (`#fff0f5` / `#f472b6`).
+React + Electron pomodoro with a native Hyprland window, mako notifications, tray hide-on-close,
+session log review, and a waybar mini-timer.
+
+Visual language borrowed from [aquirin.com](https://aquirin.com): **Inconsolata** everywhere, pure
+black and white, one hot accent, hard 1px hairlines, zero border-radius, `steps()` typewriter
+motion — read at night, with CRT scanlines and phase-coloured HUD instrumentation.
 
 ![Sheenidoro](public/icon.svg)
 
-> Project lives at `/home/tartarus/Projects/pomodoro` but app is branded **Sheenidoro** everywhere (window title, .desktop, tray, waybar).
+> Project lives at `/home/tartarus/Projects/pomodoro`; the app is branded **Sheenidoro** everywhere
+> (window title, WM class, .desktop, tray, waybar).
 
 ---
 
+## Palette
+
+| Token | Hex | Use |
+|---|---|---|
+| `void` / `panel` | `#000000` / `#07080a` | ground, panels |
+| `txt` / `dim` / `faint` | `#ffffff` / `#8b9199` / `#4c5259` | type ramp |
+| `line` / `line2` | `#1e2227` / `#2c3238` | hairlines |
+| `hot` | `#ff0033` | **focus** — aquirin's red accent |
+| `ice` | `#00e5ff` | **short break** |
+| `gold` | `#ffb000` | **long break** |
+
+Each phase rebinds `--accent`, so the ring, corner brackets, caret and buttons recolour together.
+
 ## Features
 
-- **Editable durations**: Focus / Short Break / Long Break (1–90 min, long every 2–10 focuses). Changes apply next cycle. Presets 15/25/50.
-- **Always wait for user**: No auto-start — after each phase, waits for **Start** click.
-- **Chime only**: Catchy double-bell `assets/sounds/chime.wav` (1.6s, 880→1760Hz) on transition, no ticking. Test via Settings → Test notification + chime (plays both `paplay` and HTML5 Audio).
-- **Stay running**: Close → hide to tray, timer continues. Tray: Show, Toggle, Skip, Quit.
-- **Break review**: History view lists every session (`completed`/`skipped`/`interrupted`), stats (today focus/break, weekly total, completion %), weekly Recharts bar, filters (Today/Week/All), CSV export.
-- **Notifications**: Electron `Notification` + `notify-send -a Sheenidoro -u critical` (visible even in mako DND, your `~/.config/mako/config` whitelists `notify-send`).
-- **Pastel sakura theme**: Tailwind extended palette, `JetBrainsMono Nerd Font`, circular gradient progress.
-- **Waybar mini-timer**: Writes `~/.local/state/sheenidoro/waybar.json` every 250ms while running.
-- **Native Hyprland**: `frame:true`, respects Omarchy `decoration`/`general` looknfeel.
+- **Editable durations**: focus / short / long (1–90 min, long every 2–10 focuses). Presets 15/25/50.
+- **Always waits for you**: no auto-start — each phase ends and holds until you press Engage.
+- **Chime only**: `assets/sounds/chime.wav` on transition, no ticking.
+- **Tray resident**: close hides the window; the timer keeps running and stays accurate
+  (`backgroundThrottling: false`, so phase-end alerts fire on time rather than late).
+- **Session logs**: every session (`completed` / `skipped` / `interrupted`), stat tiles, weekly
+  throughput chart, Today/Week/All filters, CSV export.
+- **Notifications**: Electron `Notification` + `notify-send -u critical` so they survive DND.
+- **Waybar mini-timer**: phase-coloured countdown that collapses completely when the app is not running.
+- **Native Hyprland**: real frame, WM class `Sheenidoro`.
 
-Graphics: generated kawaii tomato SVGs — app icon 512, tray 22, focus/short/long/empty illustrations.
-
-## Quick Start (Dev)
+## Quick start (dev)
 
 ```bash
-cd /home/tartarus/Projects/pomodoro
 npm install
-npm run dev        # vite on http://localhost:5173
-# in another terminal, after vite is up:
+npm run dev              # vite on http://localhost:5173
+npm run dev:electron     # build electron + run
+
+# one-shot production run
 npm run build:electron   # tsc electron + vite build
-npx electron .           # or: npm run dev:electron
+electron37 .             # or: npx electron .
 ```
 
-Or one-shot:
+`npm install` may skip Electron's binary download (`--ignore-scripts`). The app runs fine on the
+system runtime — Omarchy ships `electron37`.
+
+## Build / package
 
 ```bash
-npm install
-npm run build            # vite build -> dist/
-npx tsc -p tsconfig.electron.json  # -> dist-electron/
-electron .               # loads dist/index.html
-```
-
-Test notification + sound:
-
-```bash
-notify-send -a Sheenidoro -u critical -i resources/icon.png "Focus complete! 🍅" "Take a 5 min break"
-paplay assets/sounds/chime.wav
-# in-app: Settings → Test notification + chime (also triggers paplay + Audio fallback)
-# waybar: bash scripts/setup-waybar.sh then launch app
-```
-
-## Build / Package
-
-```bash
-npm run build            # typecheck + vite
-npx tsc -p tsconfig.electron.json
-npm run dist             # electron-builder -> release/ (AppImage + pacman)
-makepkg -s               # uses PKGBUILD -> sheenidoro-1.0.0-1-x86_64.pkg.tar.zst
+npm run typecheck
+npm run build:electron
+npm run dist                        # electron-builder -> release/ (AppImage + pacman)
+makepkg -s                          # PKGBUILD -> sheenidoro-2.0.0-1-x86_64.pkg.tar.zst
 sudo pacman -U sheenidoro-*.pkg.tar.zst
-sheenidoro               # launches via /usr/bin/sheenidoro wrapper (electron37)
 ```
 
-Wrapper in `PKGBUILD` uses system `/usr/bin/electron37` (already on your Omarchy). App installed to `/opt/sheenidoro`, icons to `hicolor`, desktop to `/usr/share/applications/sheenidoro.desktop`.
+The `PKGBUILD` wrapper runs system `/usr/bin/electron37` against `/opt/sheenidoro`. It passes the
+**app directory**, not `main.js` — Electron reads `productName` from `package.json` during startup
+to set the Wayland `app_id`, and pointing it at the script directly makes every window come up as
+class `Electron`.
 
-## Omarchy Integration
+## Omarchy integration
 
-### Waybar (automatic)
-
-Run once — patches config + style and reloads waybar:
+### Waybar
 
 ```bash
-bash scripts/setup-waybar.sh
-# or after install: /usr/share/sheenidoro/setup-waybar.sh
+bash scripts/setup-waybar.sh          # or after install: /usr/share/sheenidoro/setup-waybar.sh
 ```
 
-This adds `custom/sheenidoro` to `~/.config/waybar/config.jsonc` (after `clock` in `modules-center`), appends pastel styles to `~/.config/waybar/style.css`, backs up originals, and `killall -SIGUSR2 waybar`.
+Idempotent. It backs up your config and style, then:
+
+- installs the state helper to `~/.local/share/sheenidoro/waybar-sheenidoro.sh`
+- ensures a `sheenidoro` launcher exists — if the pacman package isn't installed it writes a shim
+  to `~/.local/bin/sheenidoro` pointing at this checkout, so the module's click actions actually work
+- registers `custom/sheenidoro` in `modules-center` (after `clock`) using **absolute paths**, since
+  waybar runs click commands through `sh`, which may not have `~/.local/bin` on `PATH`
+- replaces the style block between `/* >>> sheenidoro >>> */` markers
+- restarts waybar via `omarchy restart waybar`
 
 Verify:
+
 ```bash
+bash ~/.local/share/sheenidoro/waybar-sheenidoro.sh   # {"text":"◆ 24:13", ...} or hidden
 cat ~/.local/state/sheenidoro/waybar.json
-bash scripts/waybar-sheenidoro.sh
 ```
 
-### Waybar (manual)
+**How it stays correct.** The **main process** owns the state file, not the renderer. A hidden
+`BrowserWindow` gets its timers throttled hard by Chromium, which used to stall the file and make the
+module vanish mid-session. Main writes once a second, re-deriving the countdown from the phase
+deadline, and writes atomically (temp + rename) so waybar can never read a half-written file.
 
-If you prefer manual, add to `~/.config/waybar/config.jsonc`:
+**How it hides.** Main deletes the file on exit, so the module collapses the moment you quit. If the
+app is killed outright, the helper treats a file older than 5s as stale and hides it — the module
+never shows a frozen timer.
 
-```json
-"custom/sheenidoro": {
-  "exec": "cat ~/.local/state/sheenidoro/waybar.json",
-  "return-type": "json",
-  "interval": 1,
-  "on-click": "sheenidoro --toggle",
-  "on-click-right": "sheenidoro --show",
-  "tooltip": true
-},
-```
+Module clicks: **left** toggle · **right** show window · **middle** skip phase. Toggle and skip
+deliberately do *not* raise the window.
 
-And include `"custom/sheenidoro"` in `modules-center` (recommended right after `clock`) or `modules-right`.
-
-Helper script alternative:
-
-```json
-"exec": "~/.local/share/sheenidoro/waybar-sheenidoro.sh"
-```
-
-Style in `~/.config/waybar/style.css` (added automatically by setup script):
-
-```css
-#custom-sheenidoro { padding: 0 10px; margin:0 4px; border-radius:12px; background:#ffe4ec; color:#5c3a4a; border:1px solid #f8c8d4; font-weight:bold; }
-#custom-sheenidoro.focus { background:#f472b6; color:white; border-color:#ec4899; }
-#custom-sheenidoro.break { background:#fff0f5; color:#db2777; }
-#custom-sheenidoro.paused { opacity:0.75; }
-#custom-sheenidoro.idle { background:#fff0f5; color:#9d6b7a; }
-```
-
-Waybar file example:
-
-```json
-{ "text": "23:41 🍅", "tooltip": "Focus ● running — 23:41 left • 2 focus done", "class": "focus", "percentage": 62 }
-```
+Classes emitted: `focus` `short` `long` `paused` `idle` `hidden`.
 
 ### Hyprland (optional float)
 
-In `~/.config/hypr/looknfeel.conf` or `~/.config/hypr/hyprland.conf`:
+Window class is `Sheenidoro`. Check the current rule syntax for your Hyprland version, then add
+something like:
 
 ```
-windowrule = float, match:class Sheenidoro
-windowrule = size 1000 680, match:class Sheenidoro
-windowrule = center, match:class Sheenidoro
+windowrule = float, class:Sheenidoro
+windowrule = size 1060 720, class:Sheenidoro
+windowrule = center, class:Sheenidoro
 ```
-
-Native header already, so Hyprland borders/shadows apply.
 
 ### Mako
 
-Already themed pink at `~/.config/mako/config`:
-
-```
-background-color=#fff0f5
-border-color=#f8c8d4
-text-color=#5c3a4a
-```
-
-Sheenidoro uses `-u critical` so notifications bypass DND (your config has `[mode=do-not-disturb] invisible=true` but whitelists `notify-send`).
+Notifications use `-u critical`, so they show even under do-not-disturb.
 
 ## CLI
 
 ```bash
 sheenidoro              # open / focus window
-sheenidoro --toggle     # toggle start/pause via IPC to running instance
-sheenidoro --show       # bring to front
-sheenidoro --waybar     # print waybar json and exit (for debugging)
+sheenidoro --toggle     # start/pause the running instance (does not raise the window)
+sheenidoro --skip       # skip the current phase
+sheenidoro --show       # bring the window to front
+sheenidoro --waybar     # print current waybar json and exit
 ```
 
-Single-instance lock: second launch focuses existing window.
+Single-instance lock: a second launch forwards its arguments to the running instance.
 
-## Data & Config
+## Data & config
 
-- **Settings & sessions**: `~/.config/sheenidoro/config.json` (electron-store)
-  ```json
-  { "settings": { "focusMin":25, "shortBreakMin":5, "longBreakMin":15, "longBreakEvery":4, "soundEnabled":true, "notifyEnabled":true },
-    "sessions": [ { "id":"abc", "mode":"focus", "plannedSec":1500, "actualSec":1500, "startedAt":"...", "endedAt":"...", "status":"completed" } ] }
-  ```
-- **Waybar state**: `~/.local/state/sheenidoro/waybar.json` (generated 4×/sec)
-- **Chime**: `assets/sounds/chime.wav` → bundled to `dist/assets/` and `public/sounds/`
-- **Bounds**: `windowBounds` in store, restored on launch.
+- **Settings & sessions**: `~/.config/sheenidoro/config.json` (electron-store, sessions capped at 10k).
+  The path is pinned explicitly — `productName` alone would move it to `~/.config/Sheenidoro`.
+- **Waybar state**: `~/.local/state/sheenidoro/waybar.json`, rewritten once a second by the main
+  process and deleted on exit. Honours `XDG_STATE_HOME`.
+- **Window bounds**: `windowBounds` in the store, restored on launch.
+- **Fonts**: Inconsolata 400/700 self-hosted in `public/fonts/` — no network at runtime.
 
-Export CSV: History → Export or `~/.local/share/sheenidoro/waybar-sheenidoro.sh` logic keeps `~/Documents/sheenidoro-history.csv`.
-
-## Project Structure
+## Project structure
 
 ```
 .
-├── docs/spec.md                 # full spec sheet
-├── electron/main.ts             # BrowserWindow, tray, IPC, notify, waybar file
-├── electron/preload.ts          # contextBridge
+├── docs/spec.md
+├── electron/
+│   ├── main.ts                  # window, tray, IPC, notifications, waybar writer
+│   └── preload.ts               # contextBridge (returns unsubscribers)
 ├── src/
-│   ├── App.tsx                  # view router + shortcuts (Space/R/S)
-│   ├── main.tsx, index.css      # tailwind sakura
-│   ├── lib/types.ts, usePomodoro.ts, format.ts
-│   ├── components/TimerRing.tsx, Sidebar.tsx
-│   ├── views/TimerView.tsx, HistoryView.tsx, SettingsView.tsx
-│   └── assets/illustrations/*.tsx  # generated SVGs
+│   ├── App.tsx                  # HUD rail, CRT layers, shortcuts
+│   ├── index.css                # design tokens, scanlines, typewriter, brackets
+│   ├── lib/{types,theme,usePomodoro,format}.ts
+│   ├── components/{TimerRing,NavRail}.tsx
+│   └── views/{TimerView,HistoryView,SettingsView}.tsx
+├── public/fonts/inconsolata-{400,700}.woff2
 ├── assets/sounds/chime.wav
-├── resources/icon.png (512) + -256/-128/-64/-32 + tray.png + sheenidoro.desktop
-├── scripts/waybar-sheenidoro.sh
-├── PKGBUILD
-├── tailwind.config.js, vite.config.ts, tsconfig*.json
-└── CHANGELOG.md
+├── resources/                   # icons 512/256/128/64/32 + tray22 + .desktop
+├── scripts/{setup-waybar.sh,waybar-sheenidoro.sh}
+└── PKGBUILD
 ```
 
 ## Shortcuts
 
-- **Space**: Start / Pause / Resume
-- **R**: Reset current phase
-- **S**: Skip to next mode (marks `skipped`)
+| Key | Action |
+|---|---|
+| `Space` | Engage / Hold / Resume |
+| `R` | Reset current phase |
+| `S` | Skip to next phase (logs `skipped`) |
+| `1` `2` `3` | Jump to Timer / Logs / Config |
 
-Close button = hide to tray (not quit) — use tray Quit or `Ctrl+Q`.
+Ignored while a form field has focus. Closing the window hides to tray — quit from the tray menu.
 
 ## Troubleshooting
 
-- **No window on Hyprland**: `hyprctl clients | grep Sheenidoro` → if hidden, `sheenidoro --show` or click tray.
-- **No notification**: check `mako` running (`systemctl --user status mako`), test `notify-send -a Sheenidoro -u critical test`.
-- **No waybar**: run `bash scripts/setup-waybar.sh` then `cat ~/.local/state/sheenidoro/waybar.json` — if file updates while timer runs, module is writing; then `killall -SIGUSR2 waybar` or `waybar &`. Check `~/.config/waybar/config.jsonc` contains `custom/sheenidoro` in `modules-center`.
-- **Electron not found**: wrapper tries `electron37` → `electron` fallback; install `electron37` via pacman.
+- **Waybar module missing**: it is *meant* to disappear when the app isn't running. With the app up,
+  run `bash ~/.local/share/sheenidoro/waybar-sheenidoro.sh` — if it prints `"class":"hidden"` while
+  the app is running, the state file is stale; check the app is alive and `~/.local/state/sheenidoro/`
+  is writable.
+- **Waybar clicks do nothing**: `command -v sheenidoro`. If empty, re-run `scripts/setup-waybar.sh`
+  to regenerate the launcher shim.
+- **Window class is `Electron`**: something is launching `main.js` directly instead of the app
+  directory. Use the wrapper or `electron37 .` from the project root.
+- **No notification**: check mako is running, then `notify-send -a Sheenidoro -u critical test`.
+- **No sound**: verify `pavucontrol` levels and that `paplay assets/sounds/chime.wav` works.
+- **Electron not found**: install `electron37` (`omarchy pkg add electron37`).
 
 ## License
 
-MIT — see `LICENSE` if added. Graphics generated for this project.
-
----
-
-Built for Omarchy — pink, calm, focused. 🌸
+MIT. Graphics generated for this project; Inconsolata is SIL OFL.
